@@ -116,6 +116,7 @@ struct hmi_controller {
 	int32_t                             is_initialized;
 
 	struct weston_compositor           *compositor;
+	struct weston_process               process;
 	struct wl_listener                  destroy_listener;
 
 	struct wl_client                   *user_interface;
@@ -1678,14 +1679,21 @@ initialize(struct hmi_controller *hmi_ctrl)
 }
 
 static void
+handle_hmi_client_process_sigchld(struct weston_process *proc, int status)
+{
+}
+
+static void
 launch_hmi_client_process(void *data)
 {
 	struct hmi_controller *hmi_ctrl =
 		(struct hmi_controller *)data;
 
 	hmi_ctrl->user_interface =
-		weston_client_start(hmi_ctrl->compositor,
-				    hmi_ctrl->hmi_setting->ivi_homescreen);
+		weston_client_launch(hmi_ctrl->compositor,
+		                     &hmi_ctrl->process,
+		                     hmi_ctrl->hmi_setting->ivi_homescreen,
+		                     handle_hmi_client_process_sigchld);
 
 	free(hmi_ctrl->hmi_setting->ivi_homescreen);
 }

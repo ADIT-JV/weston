@@ -232,9 +232,14 @@ application_surface_create(struct wl_client *client,
 		wl_resource_get_user_data(surface_resource);
 	struct wl_resource *res;
 
-	if (weston_surface_set_role(weston_surface, "ivi_surface",
-				    resource, IVI_APPLICATION_ERROR_ROLE) < 0)
+	if (weston_surface != NULL) {
+		/* check if a surface already has another role*/
+		if (weston_surface->configure) {
+			return;
+		}
+	} else {
 		return;
+	}
 
 	layout_surface = shell->ivi_layout->surface_create(weston_surface,
 						    id_surface);

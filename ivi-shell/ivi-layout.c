@@ -927,7 +927,7 @@ commit_screen_list(struct ivi_layout *layout)
 		iviscrn->event_mask = 0;
 
 		/* Clear view list of layout ivi_layer */
-		wl_list_init(&layout->layout_layer.view_list.link);
+		wl_list_init(&layout->layout_layer.view_list);
 
 		wl_list_for_each(ivilayer, &iviscrn->order.layer_list, order.link) {
 			if (ivilayer->prop.visibility == false)
@@ -946,7 +946,7 @@ commit_screen_list(struct ivi_layout *layout)
 				if (ivisurf->surface == NULL || tmpview == NULL)
 					continue;
 
-				weston_layer_entry_insert(&layout->layout_layer.view_list,
+				wl_list_insert(&layout->layout_layer.view_list,
 							  &tmpview->layer_link);
 
 				ivisurf->surface->output = iviscrn->output;

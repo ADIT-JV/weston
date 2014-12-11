@@ -417,8 +417,9 @@ create_surface(struct window *window)
 	if (!display->shell)
 		return;
 
-	if (window->fullscreen)
-		xdg_surface_set_fullscreen(window->xdg_surface, NULL);
+	xdg_surface_request_change_state(window->xdg_surface,
+					 XDG_SURFACE_STATE_FULLSCREEN,
+					 window->fullscreen, 0);
 }
 
 static void
@@ -686,15 +687,11 @@ keyboard_handle_key(void *data, struct wl_keyboard *keyboard,
 {
 	struct display *d = data;
 
-	if (!d->shell)
-		return;
-
-	if (key == KEY_F11 && state) {
-		if (d->window->fullscreen)
-			xdg_surface_unset_fullscreen(d->window->xdg_surface);
-		else
-			xdg_surface_set_fullscreen(d->window->xdg_surface, NULL);
-	} else if (key == KEY_ESC && state)
+	if (key == KEY_F11 && state)
+		xdg_surface_request_change_state(d->window->xdg_surface,
+						 XDG_SURFACE_STATE_FULLSCREEN,
+						 !d->window->fullscreen, 0);
+	else if (key == KEY_ESC && state)
 		running = 0;
 }
 
