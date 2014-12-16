@@ -163,7 +163,22 @@ static void
 handle_ivi_surface_configure(void *data, struct ivi_surface *ivi_surface,
 			     int32_t width, int32_t height)
 {
-	/* Simple-shm is resizable */
+	struct window *window = data;
+
+	if (window->buffers[0].buffer) {
+		wl_buffer_destroy(window->buffers[0].buffer);
+		window->buffers[0].buffer = NULL;
+		window->buffers[0].busy = 0;
+	}
+
+	if (window->buffers[1].buffer) {
+		wl_buffer_destroy(window->buffers[1].buffer);
+		window->buffers[1].buffer = NULL;
+		window->buffers[1].busy = 0;
+	}
+
+	window->width = width;
+	window->height = height;
 }
 
 static const struct ivi_surface_listener ivi_surface_listener = {
