@@ -433,6 +433,14 @@ weston_simple_egl_CFLAGS = $(AM_CFLAGS) $(SIMPLE_EGL_CLIENT_CFLAGS)
 weston_simple_egl_LDADD = $(SIMPLE_EGL_CLIENT_LIBS) -lm
 endif
 
+demo_clients += weston-simple-egl-wl-shell
+weston_simple_egl_wl_shell_SOURCES = clients/simple-egl-wl-shell.c
+nodist_weston_simple_egl_wl_shell_SOURCES =	\
+	protocol/ivi-application-protocol.c	\
+	protocol/ivi-application-client-protocol.h
+weston_simple_egl_wl_shell_CFLAGS = $(AM_CFLAGS) $(SIMPLE_EGL_CLIENT_CFLAGS)
+weston_simple_egl_wl_shell_LDADD = $(SIMPLE_EGL_CLIENT_LIBS) -lm
+
 demo_clients += weston-simple-keyboard-binding
 weston_simple_keyboard_binding_SOURCES = clients/simple-keyboard-binding.c
 nodist_weston_simple_keyboard_binding_SOURCES =		\
