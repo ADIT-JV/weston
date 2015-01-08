@@ -189,7 +189,6 @@ mode_orig(struct hmi_controller *hmi_ctrl,
 {
     struct ivi_layout_surface *ivisurf  = NULL;
     struct ivi_layout_surface *surfaces[1024] = {}; //FIXME
-    struct ivi_layout_surface *new_order[1024] = {}; //FIXME
 
     const uint32_t duration = hmi_ctrl->hmi_setting->transition_duration;
 
@@ -218,12 +217,9 @@ mode_orig(struct hmi_controller *hmi_ctrl,
 
     if(surf_num > 0){
         ivi_layout_layerSetTransition(layer->ivilayer,IVI_LAYOUT_TRANSITION_LAYER_VIEW_ORDER,duration);
-        //TODO: implement IVI_LAYOUT_TRANSITION_LAYER_VIEW_ORDER later.
-        ivi_layout_transition_layer_render_order(layer->ivilayer,
-                                                    new_order,
-                                                    surf_num,
-                                                    duration);
     }
+
+    free(surfaces);
 }
 
 /**
@@ -290,13 +286,10 @@ mode_divided_into_tiling(struct hmi_controller *hmi_ctrl,
 
     if(surf_num > 0){
         ivi_layout_layerSetTransition(layer->ivilayer,IVI_LAYOUT_TRANSITION_LAYER_VIEW_ORDER,duration);
-        //TODO: implement IVI_LAYOUT_TRANSITION_LAYER_VIEW_ORDER later.
-        ivi_layout_transition_layer_render_order(layer->ivilayer,
-                                                    new_order,
-                                                    surf_num,
-                                                    duration);
     }
 
+    free(surfaces);
+    free(new_order);
     si++;
 }
 
