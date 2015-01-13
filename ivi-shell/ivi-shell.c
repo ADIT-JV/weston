@@ -147,6 +147,8 @@ surface_destroy(struct wl_client *client, struct wl_resource *resource)
     }
 
     wl_resource_destroy(resource);
+    wl_list_remove(&ivisurf->link);
+    free(ivisurf);
 }
 
 static const struct ivi_surface_interface surface_implementation = {
