@@ -691,10 +691,6 @@ hmi_controller_create(struct weston_compositor *ec)
     tmp_link_layer->layout_layer = hmi_ctrl->workspace_background_layer.ivilayer;
     wl_list_insert(&hmi_ctrl->workspace_fade.layer_list, &tmp_link_layer->link);
 
-    ivi_layout_addNotificationCreateSurface(set_notification_create_surface, hmi_ctrl);
-    ivi_layout_addNotificationRemoveSurface(set_notification_remove_surface, hmi_ctrl);
-    ivi_layout_addNotificationConfigureSurface(set_notification_configure_surface, hmi_ctrl);
-
     free(ppScreen);
     ppScreen = NULL;
 
@@ -1045,6 +1041,10 @@ ivi_hmi_controller_add_launchers(struct wl_resource *resource,
     wl_array_release(&launchers);
     weston_config_destroy(config);
     ivi_layout_commitChanges();
+
+    ivi_layout_addNotificationCreateSurface(set_notification_create_surface, hmi_ctrl);
+    ivi_layout_addNotificationRemoveSurface(set_notification_remove_surface, hmi_ctrl);
+    ivi_layout_addNotificationConfigureSurface(set_notification_configure_surface, hmi_ctrl);
 }
 
 static void
