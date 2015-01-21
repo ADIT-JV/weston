@@ -921,16 +921,16 @@ set_surface_mask(struct ivi_layout_surface *ivisurf)
     ivilayer = link_layer->ivilayer;
 
     if (ivisurf->surface != NULL
-        && ivisurf->surface->width != 0
-        && ivisurf->surface->height != 0
+        && ivisurf->prop.destWidth != 0
+        && ivisurf->prop.destHeight != 0
         && ivisurf->wl_layer_dirty) {
         struct weston_matrix mat;
         struct weston_transform *tform;
         struct weston_view *view;
         float top = 0;
         float left = 0;
-        float right = ivisurf->surface->width;
-        float bottom = ivisurf->surface->height;
+        float right = ivisurf->prop.destWidth;
+        float bottom = ivisurf->prop.destHeight;
         pixman_region32_t region;
 
         wl_list_for_each(view, &ivisurf->surface->views, surface_link)
@@ -945,6 +945,9 @@ set_surface_mask(struct ivi_layout_surface *ivisurf)
         wl_list_for_each(tform, &view->geometry.transformation_list, link) {
             /* Exclude the surface source region position transform */
             if (tform == &ivisurf->surface_source_pos)
+                continue;
+
+            if (tform == &ivisurf->surface_scaling)
                 continue;
 
             weston_matrix_multiply(&mat, &tform->matrix);
