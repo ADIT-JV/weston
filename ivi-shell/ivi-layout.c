@@ -1942,6 +1942,8 @@ ivi_layout_surfaceRemove(struct ivi_layout_surface *ivisurf)
 
     ivi_layout_surfaceRemoveNotification(ivisurf);
 
+    free(ivisurf);
+
     return 0;
 }
 
