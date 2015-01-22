@@ -219,7 +219,6 @@ mode_orig(struct hmi_controller *hmi_ctrl,
         ivi_layout_layerSetTransition(layer->ivilayer,IVI_LAYOUT_TRANSITION_LAYER_VIEW_ORDER,duration);
     }
 
-    free(surfaces);
 }
 
 /**
@@ -288,8 +287,6 @@ mode_divided_into_tiling(struct hmi_controller *hmi_ctrl,
         ivi_layout_layerSetTransition(layer->ivilayer,IVI_LAYOUT_TRANSITION_LAYER_VIEW_ORDER,duration);
     }
 
-    free(surfaces);
-    free(new_order);
     si++;
 }
 
