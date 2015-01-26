@@ -94,6 +94,12 @@
       <arg name="id" type="new_id" interface="ivi_surface"/>
     </request>
 
+    <request name="activate_ivi_module">
+      <description summary="load and initialize ivi-module">
+        This request activates the libraries designated by "ivi-module" section in weston.ini.
+      </description>
+    </request>
+
   </interface>
 
 </protocol>
