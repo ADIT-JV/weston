@@ -1181,29 +1181,28 @@ commit_list_layer(struct ivi_layout *layout)
             ivisurf->event_mask |= IVI_NOTIFICATION_REMOVE;
         }
 
-            wl_list_init(&ivilayer->order.list_surface);
-            wl_list_for_each(ivisurf, &ivilayer->pending.list_surface,
-                                  pending.link) {
-                if(!wl_list_empty(&ivisurf->order.link)){
-                    /* Remove surface from layer here, too, since the surface
-                     * may be in another layer, so the order links won't get
-                     * reset */
-                    remove_ordersurface_from_layer(ivisurf);
-                    wl_list_remove(&ivisurf->order.link);
-                    wl_list_init(&ivisurf->order.link);
-                }
-
-                wl_list_insert(&ivilayer->order.list_surface,
-                               &ivisurf->order.link);
-                add_ordersurface_to_layer(ivisurf, ivilayer);
-                if (ivisurf->event_mask & IVI_NOTIFICATION_REMOVE) {
-                    ivisurf->event_mask ^= IVI_NOTIFICATION_REMOVE;
-                } else {
-                    ivisurf->event_mask |= IVI_NOTIFICATION_ADD;
-                }
-             ivilayer->event_mask ^= IVI_NOTIFICATION_RENDER_ORDER;
+        wl_list_init(&ivilayer->order.list_surface);
+        wl_list_for_each(ivisurf, &ivilayer->pending.list_surface,
+                              pending.link) {
+            if(!wl_list_empty(&ivisurf->order.link)){
+                /* Remove surface from layer here, too, since the surface
+                 * may be in another layer, so the order links won't get
+                 * reset */
+                remove_ordersurface_from_layer(ivisurf);
+                wl_list_remove(&ivisurf->order.link);
+                wl_list_init(&ivisurf->order.link);
             }
-        
+
+            wl_list_insert(&ivilayer->order.list_surface,
+                           &ivisurf->order.link);
+            add_ordersurface_to_layer(ivisurf, ivilayer);
+            if (ivisurf->event_mask & IVI_NOTIFICATION_REMOVE) {
+                ivisurf->event_mask ^= IVI_NOTIFICATION_REMOVE;
+            } else {
+                ivisurf->event_mask |= IVI_NOTIFICATION_ADD;
+            }
+            ivilayer->event_mask ^= IVI_NOTIFICATION_RENDER_ORDER;
+        }
     }
 }
 
