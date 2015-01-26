@@ -159,7 +159,7 @@ ivi_layout_emitWarningSignal(uint32_t id_surface,
 /**
  * Internal API to add/remove a link to surface from layer.
  */
-static void
+static int
 add_link_to_surface(struct ivi_layout_layer *ivilayer,
                     struct link_layer *link_layer)
 {
@@ -176,7 +176,9 @@ add_link_to_surface(struct ivi_layout_layer *ivilayer,
     if (found == 0) {
         wl_list_init(&link_layer->link_to_layer);
         wl_list_insert(&ivilayer->link_to_surface, &link_layer->link_to_layer);
+        return 1;
     }
+    return 0;
 }
 
 static void
@@ -227,7 +229,9 @@ add_ordersurface_to_layer(struct ivi_layout_surface *ivisurf,
     link_layer->ivilayer = ivilayer;
     wl_list_init(&link_layer->link);
     wl_list_insert(&ivisurf->list_layer, &link_layer->link);
-    add_link_to_surface(ivilayer, link_layer);
+    if (add_link_to_surface(ivilayer, link_layer)) {
+        ivisurf->wl_layer_dirty = 1;
+    }
 }
 
 static void
