@@ -107,6 +107,8 @@ struct ivi_layout_notification_callback {
 	void *data;
 };
 
+static const struct weston_keyboard_grab_interface ivi_layout_keyboard_grab_interface;
+
 static struct ivi_layout ivilayout = {0};
 
 struct ivi_layout *
@@ -2870,6 +2872,9 @@ ivi_layout_init_with_compositor(struct weston_compositor *ec)
 
 	layout->transitions = ivi_layout_transition_set_create(ec);
 	wl_list_init(&layout->pending_transition_list);
+
+	layout->keyboard_grab.interface = &ivi_layout_keyboard_grab_interface;
+	layout->keyboard_grab.keyboard = NULL;
 }
 
 
@@ -2913,6 +2918,66 @@ ivi_layout_surface_is_forced_configure_event(struct ivi_layout_surface *ivisurf)
 
 	return ivisurf->prop.is_forced_configure_event;
 }
+
+static void
+ivi_layout_grab_keyboard_key(struct weston_keyboard_grab *grab,
+			     uint32_t time, uint32_t key, uint32_t state)
+{
+	struct weston_keyboard *keyboard = grab->keyboard;
+	struct wl_display *display = keyboard->seat->compositor->wl_display;
+	uint32_t serial;
+	struct wl_resource *resource;
+
+	wl_resource_for_each(resource, &keyboard->focus_resource_list) {
+		serial = wl_display_next_serial(display);
+		wl_keyboard_send_key(resource,
+		                     serial,
+		                     time,
+		                     key,
+		                     state);
+	}
+
+	wl_resource_for_each(resource, &keyboard->resource_list) {
+		serial = wl_display_next_serial(display);
+		wl_keyboard_send_key(resource,
+		                     serial,
+		                     time,
+		                     key,
+		                     state);
+	}
+}
+
+static void
+ivi_layout_grab_keyboard_modifier(struct weston_keyboard_grab *grab,
+				  uint32_t serial, uint32_t mods_depressed,
+				  uint32_t mods_latched, uint32_t mods_locked,
+				  uint32_t group)
+{
+	struct wl_resource *resource;
+	struct weston_keyboard *keyboard = grab->keyboard;
+
+	wl_resource_for_each(resource, &keyboard->focus_resource_list) {
+		wl_keyboard_send_modifiers(resource, serial, mods_depressed,
+					   mods_latched, mods_locked, group);
+	}
+
+	wl_resource_for_each(resource, &keyboard->resource_list) {
+		wl_keyboard_send_modifiers(resource, serial, mods_depressed,
+					   mods_latched, mods_locked, group);
+	}
+}
+
+static void
+ivi_layout_grab_keyboard_cancel(struct weston_keyboard_grab *grab)
+{
+	(void)grab; /* no op */
+}
+
+static const struct weston_keyboard_grab_interface ivi_layout_keyboard_grab_interface = {
+	ivi_layout_grab_keyboard_key,
+	ivi_layout_grab_keyboard_modifier,
+	ivi_layout_grab_keyboard_cancel
+};
 
 static struct ivi_controller_interface ivi_controller_interface = {
 	/**

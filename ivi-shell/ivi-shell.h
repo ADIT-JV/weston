@@ -38,6 +38,10 @@ struct ivi_shell
 	struct wl_listener hide_input_panel_listener;
 	struct wl_listener update_input_panel_listener;
 
+	struct wl_listener seat_created_listener;
+	struct wl_listener seat_updated_caps_listener;
+	struct wl_listener seat_destroy_listener;
+
 	struct weston_layer input_panel_layer;
 
 	bool locked;
