@@ -294,8 +294,30 @@ application_surface_create(struct wl_client *client,
 				       ivisurf, shell_destroy_shell_surface);
 }
 
+static int
+ivi_shell_setting_create(struct ivi_shell_setting *dest,
+			 struct weston_compositor *compositor);
+
+static void
+application_activate_ivi_module(struct wl_client *client,
+				struct wl_resource *resource)
+{
+	struct ivi_shell *shell = wl_resource_get_user_data(resource);
+	struct weston_compositor *compositor = shell->compositor;
+
+	struct ivi_shell_setting setting = { };
+	if (ivi_shell_setting_create(&setting, compositor) != 0)
+		return;
+
+	/* Call module_init of ivi-modules which are defined in weston.ini */
+	load_controller_modules(compositor, setting.ivi_module, 0, NULL);
+
+	free(setting.ivi_module);
+}
+
 static const struct ivi_application_interface application_implementation = {
-	application_surface_create
+	application_surface_create,
+	application_activate_ivi_module
 };
 
 /*
@@ -462,13 +484,6 @@ module_init(struct weston_compositor *compositor,
 		return -1;
 
 	ivi_layout_init_with_compositor(compositor);
-
-
-	/* Call module_init of ivi-modules which are defined in weston.ini */
-	if (load_controller_modules(compositor, setting.ivi_module, argc, argv) < 0) {
-		free(setting.ivi_module);
-		return -1;
-	}
 
 	shell->seat_created_listener.notify = handle_seat_created;
 	wl_signal_add(&compositor->seat_created_signal, &shell->seat_created_listener);
