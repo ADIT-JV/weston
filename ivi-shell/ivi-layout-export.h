@@ -429,6 +429,17 @@ struct ivi_controller_interface {
 					uint32_t duration);
 
 	/**
+	 * \brief Get size; width, height, and stride.
+	 *
+	 * \return IVI_SUCCEEDED if the method call was successful
+	 * \return IVI_FAILED if the method call was failed
+	 */
+	int32_t (*surface_get_size)(struct ivi_layout_surface *ivisurf,
+				    int32_t *width,
+				    int32_t *height,
+				    int32_t *stride);
+
+	/**
 	 * layer controller interface
 	 */
 
