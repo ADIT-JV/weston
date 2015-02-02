@@ -2709,9 +2709,15 @@ ivi_layout_surface_configure(struct ivi_layout_surface *ivisurf,
 
 	ivisurf->event_mask |= IVI_NOTIFICATION_CONFIGURE;
 
-	if (in_init) {
-		wl_signal_emit(&layout->surface_notification.configure_changed, ivisurf);
-	} else {
+	// if (in_init) {
+	//      wl_signal_emit(&layout->surface_notification.configure_changed, ivisurf);
+	// } else {
+	//      ivi_layout_commit_changes();
+	// }
+
+	wl_signal_emit(&layout->surface_notification.configure_changed, ivisurf);
+
+	if (!in_init) {
 		ivi_layout_commit_changes();
 	}
 }
@@ -2842,6 +2848,40 @@ ivi_layout_surface_add_configured_listener(struct ivi_layout_surface* ivisurf,
 	wl_signal_add(&ivisurf->configured, listener);
 }
 
+static int32_t
+ivi_layout_surface_set_is_forced_configure_event(struct weston_surface *surface,
+						 bool is_forced)
+{
+	struct ivi_layout *layout = get_instance();
+	struct ivi_layout_surface *ivisurf = NULL;
+
+	if (surface == NULL) {
+		weston_log("ivi_layout_surface_set_is_forced_configure_event: invalid argument\n");
+		return IVI_FAILED;
+	}
+
+	wl_list_for_each(ivisurf, &layout->surface_list, link) {
+		if (ivisurf->surface == surface) {
+			ivisurf->pending.prop.is_forced_configure_event = is_forced;
+			ivisurf->prop.is_forced_configure_event = is_forced;
+			return IVI_SUCCEEDED;
+		}
+	}
+
+	return IVI_FAILED;
+}
+
+bool
+ivi_layout_surface_is_forced_configure_event(struct ivi_layout_surface *ivisurf)
+{
+	if (ivisurf == NULL) {
+		weston_log("ivi_layout_surface_is_forced_configure_event: invalid argument\n");
+		return false;
+	}
+
+	return ivisurf->prop.is_forced_configure_event;
+}
+
 static struct ivi_controller_interface ivi_controller_interface = {
 	/**
 	 * commit all changes
@@ -2930,7 +2970,12 @@ static struct ivi_controller_interface ivi_controller_interface = {
 	 * animation
 	 */
 	.transition_move_layer_cancel	= ivi_layout_transition_move_layer_cancel,
-	.layer_set_fade_info		= ivi_layout_layer_set_fade_info
+	.layer_set_fade_info		= ivi_layout_layer_set_fade_info,
+
+	/**
+	 * texture sharing
+	 */
+	.surface_set_is_forced_configure_event	= ivi_layout_surface_set_is_forced_configure_event
 };
 
 int

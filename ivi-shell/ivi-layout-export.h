@@ -81,6 +81,7 @@ struct ivi_layout_surface_properties
 	bool visibility;
 	int32_t transition_type;
 	uint32_t transition_duration;
+	bool is_forced_configure_event;
 };
 
 struct ivi_layout_layer_properties
@@ -768,6 +769,11 @@ struct ivi_controller_interface {
 				       uint32_t is_fade_in,
 				       double start_alpha, double end_alpha);
 
+	/**
+	 * for texture sharing
+	 */
+	int32_t (*surface_set_is_forced_configure_event)(struct weston_surface *surface,
+							 bool is_force);
 };
 
 #ifdef __cplusplus

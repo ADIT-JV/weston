@@ -139,6 +139,9 @@ ivi_shell_surface_configure(struct weston_surface *surface,
 
 		ivi_layout_surface_configure(ivisurf->layout_surface,
 					     surface->width, surface->height);
+	} else if (ivi_layout_surface_is_forced_configure_event(ivisurf->layout_surface)) {
+		ivi_layout_surface_configure(ivisurf->layout_surface,
+					     surface->width, surface->height);
 	}
 }
 

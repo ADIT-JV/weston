@@ -177,6 +177,8 @@ ivi_layout_surface_get_dimension(struct ivi_layout_surface *ivisurf,
 void
 ivi_layout_surface_add_configured_listener(struct ivi_layout_surface* ivisurf,
 					   struct wl_listener* listener);
+bool
+ivi_layout_surface_is_forced_configure_event(struct ivi_layout_surface *ivisurf);
 /**
  * methods of interaction between transition animation with ivi-layout
  */
