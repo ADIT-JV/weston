@@ -181,6 +181,12 @@ ivi_layout_surface_add_configured_listener(struct ivi_layout_surface* ivisurf,
 					   struct wl_listener* listener);
 bool
 ivi_layout_surface_is_forced_configure_event(struct ivi_layout_surface *ivisurf);
+int32_t
+ivi_layout_create_splash_surface(struct ivi_layout_surface *ivisurf,
+				 uint32_t id_surface);
+int32_t
+ivi_layout_configure_splash_surface(struct ivi_layout_surface *ivisurf,
+				    int32_t width, int32_t height);
 /**
  * methods of interaction between transition animation with ivi-layout
  */

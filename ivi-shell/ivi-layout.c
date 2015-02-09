@@ -2979,6 +2979,102 @@ static const struct weston_keyboard_grab_interface ivi_layout_keyboard_grab_inte
 	ivi_layout_grab_keyboard_cancel
 };
 
+int32_t
+ivi_layout_create_splash_surface(struct ivi_layout_surface *ivisurf,
+				 uint32_t id_surface)
+{
+	struct ivi_layout_layer *ivilayer;
+
+	ivilayer = ivi_layout_layer_create_with_dimension(id_surface,
+		ivisurf->prop.source_width,
+		ivisurf->prop.source_height);
+	if (NULL == ivilayer) {
+		return -1;
+	}
+
+	return 0;
+}
+
+int32_t
+ivi_layout_configure_splash_surface(struct ivi_layout_surface *ivisurf,
+				    int32_t width, int32_t height)
+{
+	int32_t ret = IVI_SUCCEEDED;
+	struct ivi_layout_layer *ivilayer;
+	int32_t length;
+	struct ivi_layout_screen *iviscreen;
+
+	ret = ivi_layout_surface_set_source_rectangle(ivisurf,
+		ivisurf->prop.source_x, ivisurf->prop.source_y, width, height);
+	if (IVI_SUCCEEDED != ret) {
+		return ret;
+	}
+
+	ret = ivi_layout_surface_set_destination_rectangle(ivisurf,
+		ivisurf->prop.dest_x, ivisurf->prop.dest_y, width, height);
+	if (IVI_SUCCEEDED != ret) {
+		return ret;
+	}
+
+	ret = ivi_layout_surface_set_visibility(ivisurf, true);
+	if (IVI_SUCCEEDED != ret) {
+		return ret;
+	}
+
+	ret = ivi_layout_surface_set_orientation(ivisurf, WL_OUTPUT_TRANSFORM_270);
+	if (IVI_SUCCEEDED != ret) {
+		return ret;
+	}
+
+	ivilayer = ivi_layout_get_layer_from_id(ivisurf->id_surface);
+	if (NULL == ivilayer) {
+		return IVI_FAILED;
+	}
+
+	ret = ivi_layout_layer_set_source_rectangle(ivilayer,
+		ivilayer->prop.source_x, ivilayer->prop.source_y, width, height);
+	if (IVI_SUCCEEDED != ret) {
+		return ret;
+	}
+
+	iviscreen = ivi_layout_get_screen_from_id(0);
+	if (iviscreen == NULL) {
+		return IVI_FAILED;
+	}
+
+	if ((iviscreen->output->transform == WL_OUTPUT_TRANSFORM_90)         ||
+	    (iviscreen->output->transform == WL_OUTPUT_TRANSFORM_270)        ||
+	    (iviscreen->output->transform == WL_OUTPUT_TRANSFORM_FLIPPED_90) ||
+	    (iviscreen->output->transform == WL_OUTPUT_TRANSFORM_FLIPPED_270)) {
+		int tmp = width;
+		width = height;
+		height = tmp;
+	}
+
+	ret = ivi_layout_layer_set_destination_rectangle(ivilayer,
+		ivilayer->prop.dest_x, ivilayer->prop.dest_y, width, height);
+	if (IVI_SUCCEEDED != ret) {
+		return ret;
+	}
+
+	ret = ivi_layout_layer_set_visibility(ivilayer, true);
+	if (IVI_SUCCEEDED != ret) {
+		return ret;
+	}
+
+	ret = ivi_layout_layer_add_surface(ivilayer, ivisurf);
+	if (IVI_SUCCEEDED != ret) {
+		return ret;
+	}
+
+	ret = ivi_layout_screen_set_render_order(iviscreen, &ivilayer, 1);
+	if (IVI_SUCCEEDED != ret) {
+		return ret;
+	}
+
+	return ivi_layout_commit_changes();
+}
+
 static struct ivi_controller_interface ivi_controller_interface = {
 	/**
 	 * commit all changes

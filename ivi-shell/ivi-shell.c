@@ -42,6 +42,9 @@
 #include "ivi-layout-export.h"
 #include "ivi-layout-private.h"
 
+/* Surface ID for splash video application */
+#define SPLASH_SURFACE_ID 0x20000000
+
 /* Representation of ivi_surface protocol object. */
 struct ivi_shell_surface
 {
@@ -139,6 +142,15 @@ ivi_shell_surface_configure(struct weston_surface *surface,
 
 		ivi_layout_surface_configure(ivisurf->layout_surface,
 					     surface->width, surface->height);
+
+		if (SPLASH_SURFACE_ID == ivisurf->id_surface) {
+			if (ivi_layout_configure_splash_surface(
+				ivisurf->layout_surface, surface->width, surface->height)
+				!= IVI_SUCCEEDED) {
+				weston_log("ivi-shell: Failed to configure_splash_surface\n");
+			}
+		}
+
 	} else if (ivi_layout_surface_is_forced_configure_event(ivisurf->layout_surface)) {
 		ivi_layout_surface_configure(ivisurf->layout_surface,
 					     surface->width, surface->height);
@@ -292,6 +304,14 @@ application_surface_create(struct wl_client *client,
 
 	wl_resource_set_implementation(res, &surface_implementation,
 				       ivisurf, shell_destroy_shell_surface);
+
+	if (SPLASH_SURFACE_ID == ivisurf->id_surface) {
+		if (ivi_layout_create_splash_surface(
+			ivisurf->layout_surface, ivisurf->id_surface)
+			!= IVI_SUCCEEDED) {
+			weston_log("ivi-shell: Failed to create_splash_surface\n");
+		}
+	}
 }
 
 static int
