@@ -85,6 +85,10 @@ GENERATE:
 install:
 	install -d $(STAGING_PATH)/usr/lib/weston
 	install -m 755 $(SHAREDLIB) $(STAGING_PATH)/usr/lib/weston
+	install -d $(STAGING_PATH)/root/.config
+	$(CP) ../conf/* $(STAGING_PATH)/root/.config
+	install -d $(STAGING_PATH)/home/pulse/.config
+	$(CP) ../conf/* $(STAGING_PATH)/home/pulse/.config
 
 clean \
 help \

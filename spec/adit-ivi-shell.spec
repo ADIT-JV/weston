@@ -26,6 +26,10 @@ make install DEST_DIR=%{buildroot}
 
 %files
 %{_libdir}/weston/ivi-shell.so
+/home/pulse/.config/ias.conf.ivi
+/home/pulse/.config/weston.ini.ivi
+/root/.config/ias.conf.ivi
+/root/.config/weston.ini.ivi
 
 %changelog
 * Fri Feb 06 2015 ADIT

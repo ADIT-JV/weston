@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<iasconfig>
+<backend>
+    <startup>
+       <crtc name='HDMI1' model='classic' mode='preferred'>
+            <output name='HDMI1-0' size='inherit' position='origin' rotation='90'/>
+       </crtc>
+    </startup>
+</backend>
+</iasconfig>
