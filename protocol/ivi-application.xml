@@ -34,6 +34,15 @@
       </description>
     </request>
 
+    <event name="visibility">
+      <description summary="visibility of surface in ivi compositor has changed">
+        The new visibility state is provided in argument visibility.
+        If visibility is 0, the surface has become invisible.
+        If visibility is not 0, the surface has become visible.
+        </description>
+      <arg name="visibility" type="int"/>
+    </event>
+
     <event name="configure">
       <description summary="suggest resize">
         The configure event asks the client to resize its surface.
