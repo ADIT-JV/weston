@@ -60,7 +60,7 @@ LINKAGES     =  rt \
                 dl \
                 wayland-client
 
-C_DEFINES    += -DUSE_106_PC
+C_DEFINES    += -DUSE_106_BC
 
 SOURCES      =  \
                 $(SHARED_DIR)/config-parser.c \
