@@ -92,7 +92,6 @@ struct ivi_layout;
 struct ivi_layout_screen {
     struct wl_list link;
     struct wl_list link_to_layer;
-    uint32_t id_screen;
 
     struct ivi_layout *layout;
     struct weston_output *output;
@@ -399,9 +398,6 @@ create_screen(struct weston_compositor *ec)
 
         wl_list_init(&iviscrn->link);
         iviscrn->layout = layout;
-
-        iviscrn->id_screen = count;
-        count++;
 
         iviscrn->output = output;
         iviscrn->event_mask = 0;
@@ -1235,6 +1231,12 @@ commit_list_screen(struct ivi_layout *layout)
             wl_list_init(&iviscrn->order.list_layer);
             wl_list_for_each(ivilayer, &iviscrn->pending.list_layer,
                                   pending.link) {
+                if(!wl_list_empty(&ivilayer->order.link)){
+                    remove_orderlayer_from_screen(ivilayer);
+                    wl_list_remove(&ivilayer->order.link);
+                    wl_list_init(&ivilayer->order.link);
+                }
+
                 wl_list_insert(&iviscrn->order.list_layer,
                                &ivilayer->order.link);
                 add_orderlayer_to_screen(ivilayer, iviscrn);
@@ -1262,7 +1264,7 @@ commit_list_screen(struct ivi_layout *layout)
                         break;
                     }
                 }
-                
+
                 if (ivilayer->prop.visibility == 0
                     || ivisurf->prop.visibility == 0
                     || tmpview == NULL)
@@ -1275,8 +1277,6 @@ commit_list_screen(struct ivi_layout *layout)
                                &ivisurf->wl_layer.link);
             }
         }
-
-        break;
     }
 }
 
@@ -1839,15 +1839,14 @@ ivi_layout_getScreenFromId(uint32_t id_screen)
 {
     struct ivi_layout *layout = get_instance();
     struct ivi_layout_screen *iviscrn = NULL;
-    (void)id_screen;
 
     wl_list_for_each(iviscrn, &layout->list_screen, link) {
-//FIXME : select iviscrn from list_screen by id_screen
-        return iviscrn;
-        break;
+        if (iviscrn->output->id == id_screen) {
+            break;
+        }
     }
 
-    return NULL;
+    return iviscrn;
 }
 
 WL_EXPORT int32_t
