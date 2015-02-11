@@ -90,7 +90,7 @@ EXTRA_OECONF_append_oracle-virtualbox += " \
 "
 
 EXTRA_OECONF_append_baytrail += " \
-  WESTON_NATIVE_BACKEND=fbdev-backend.so \
+  WESTON_NATIVE_BACKEND=drm-backend.so \
 "
 
 PACKAGECONFIG_mx6q = "imx6"
