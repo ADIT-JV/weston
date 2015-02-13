@@ -44,6 +44,7 @@ else
 # -----------------------------------------------------------------------------
 
 INCLUDES     =  -Iinclude_component \
+                -Iinclude \
                 -I$(KP_SYSROOT_FOLDER)/usr/include \
                 -I$(KP_SYSROOT_FOLDER)/usr/include/weston \
                 -I$(KP_SYSROOT_FOLDER)/usr/include/pixman-1 \
