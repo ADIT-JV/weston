@@ -2558,6 +2558,7 @@ ivi_layout_layer_remove_surface(struct ivi_layout_layer *ivilayer,
 	}
 
 	remsurf->event_mask |= IVI_NOTIFICATION_REMOVE;
+        ivilayer->event_mask |= IVI_NOTIFICATION_ADD;
 }
 
 static int32_t
