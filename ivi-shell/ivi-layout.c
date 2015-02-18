@@ -2126,6 +2126,13 @@ ivi_layout_layer_set_render_order(struct ivi_layout_layer *ivilayer,
 		return IVI_FAILED;
 	}
 
+	wl_list_for_each_safe(ivisurf, next,
+			      &ivilayer->pending.surface_list, pending.link) {
+		wl_list_init(&ivisurf->pending.link);
+	}
+
+	wl_list_init(&ivilayer->pending.surface_list);
+
 	if (pSurface == NULL) {
 		wl_list_for_each_safe(ivisurf, next, &ivilayer->pending.surface_list, pending.link) {
 			if (!wl_list_empty(&ivisurf->pending.link)) {
