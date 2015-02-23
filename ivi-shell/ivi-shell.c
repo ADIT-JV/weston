@@ -209,8 +209,67 @@ surface_destroy(struct wl_client *client, struct wl_resource *resource)
 	wl_resource_destroy(resource);
 }
 
+/**
+ * Request handler for ivi_surface.set_content.
+ *
+ * \param client The client.
+ * \param resource The ivi_surface protocol object.
+ * \param surface_resource The wl_surface protocol object.
+ */
+static void
+surface_set_content(struct wl_client *client, struct wl_resource *resource,
+		    struct wl_resource *surface_resource)
+{
+	struct ivi_shell_surface *ivisurf = wl_resource_get_user_data(resource);
+	struct weston_surface *weston_surface =
+		wl_resource_get_user_data(surface_resource);
+	struct ivi_layout_surface *layout_surface = NULL;
+
+	/* check if a surface already has another role */
+	if (weston_surface->configure) {
+		return;
+	}
+
+	/* check if a ivi_shell_surface already has ivi_layout_surface */
+	if (ivisurf->layout_surface) {
+		return;
+	}
+
+	layout_surface = ivi_layout_surface_create(weston_surface,
+						   ivisurf->id_surface);
+
+	/* check if id_ivi is already used for wl_surface */
+	if (layout_surface == NULL) {
+		wl_resource_post_error(resource,
+				       IVI_APPLICATION_ERROR_IVI_ID,
+				       "surface_id is already assigned "
+				       "by another app");
+		return;
+	}
+
+	ivisurf->layout_surface = layout_surface;
+	ivisurf->configured_listener.notify = surface_configure_notify;
+	ivi_layout_surface_add_configured_listener(
+		layout_surface,
+		&ivisurf->configured_listener);
+
+	/*
+	 * The following code relies on wl_surface destruction triggering
+	 * immediateweston_surface destruction
+	 */
+	ivisurf->surface_destroy_listener.notify = shell_handle_surface_destroy;
+	wl_signal_add(&weston_surface->destroy_signal,
+		      &ivisurf->surface_destroy_listener);
+
+	ivisurf->surface = weston_surface;
+
+	weston_surface->configure = ivi_shell_surface_configure;
+	weston_surface->configure_private = ivisurf;
+}
+
 static const struct ivi_surface_interface surface_implementation = {
 	surface_destroy,
+	surface_set_content
 };
 
 /**
@@ -238,29 +297,41 @@ application_surface_create(struct wl_client *client,
 {
 	struct ivi_shell *shell = wl_resource_get_user_data(resource);
 	struct ivi_shell_surface *ivisurf;
-	struct ivi_layout_surface *layout_surface;
-	struct weston_surface *weston_surface =
-		wl_resource_get_user_data(surface_resource);
+	struct ivi_layout_surface *layout_surface = NULL;
+	struct weston_surface *weston_surface = NULL;
 	struct wl_resource *res;
+
+	if (surface_resource != NULL) {
+		weston_surface = wl_resource_get_user_data(surface_resource);
+	}
 
 	if (weston_surface != NULL) {
 		/* check if a surface already has another role*/
 		if (weston_surface->configure) {
 			return;
 		}
+
+		layout_surface = ivi_layout_surface_create(weston_surface, id_surface);
+
+		/* check if id_ivi is already used for wl_surface*/
+		if (layout_surface == NULL){
+			wl_resource_post_error(resource,
+					       IVI_APPLICATION_ERROR_IVI_ID,
+					       "surface_id is already assigned "
+					       "by another app");
+			return;
+		}
 	} else {
-		return;
-	}
-
-	layout_surface = ivi_layout_surface_create(weston_surface, id_surface);
-
-	/* check if id_ivi is already used for wl_surface*/
-	if (layout_surface == NULL){
-		wl_resource_post_error(resource,
-				       IVI_APPLICATION_ERROR_IVI_ID,
-				       "surface_id is already assigned "
-				       "by another app");
-		return;
+		/* allow surface is NULL */
+		wl_list_for_each(ivisurf, &shell->ivi_surface_list, link) {
+			if (ivisurf->id_surface == id_surface) {
+				wl_resource_post_error(resource,
+						       IVI_APPLICATION_ERROR_IVI_ID,
+						       "surface_id is already initialized "
+						       "or created by another app");
+				return;
+			}
+		}
 	}
 
 	ivisurf = zalloc(sizeof *ivisurf);
@@ -277,22 +348,27 @@ application_surface_create(struct wl_client *client,
 
 	ivisurf->width = 0;
 	ivisurf->height = 0;
-	ivisurf->layout_surface = layout_surface;
-	ivisurf->configured_listener.notify = surface_configure_notify;
-	ivi_layout_surface_add_configured_listener(layout_surface,
-				     &ivisurf->configured_listener);
+	if (layout_surface) {
+		ivisurf->layout_surface = layout_surface;
+		ivisurf->configured_listener.notify = surface_configure_notify;
+		ivi_layout_surface_add_configured_listener(layout_surface,
+					     &ivisurf->configured_listener);
+	}
+
 	/*
 	 * The following code relies on wl_surface destruction triggering
 	 * immediateweston_surface destruction
 	 */
-	ivisurf->surface_destroy_listener.notify = shell_handle_surface_destroy;
-	wl_signal_add(&weston_surface->destroy_signal,
-		      &ivisurf->surface_destroy_listener);
+	if (weston_surface) {
+		ivisurf->surface_destroy_listener.notify = shell_handle_surface_destroy;
+		wl_signal_add(&weston_surface->destroy_signal,
+			      &ivisurf->surface_destroy_listener);
 
-	ivisurf->surface = weston_surface;
+		ivisurf->surface = weston_surface;
 
-	weston_surface->configure = ivi_shell_surface_configure;
-	weston_surface->configure_private = ivisurf;
+		weston_surface->configure = ivi_shell_surface_configure;
+		weston_surface->configure_private = ivisurf;
+	}
 
 	res = wl_resource_create(client, &ivi_surface_interface, 1, id);
 	if (res == NULL) {
