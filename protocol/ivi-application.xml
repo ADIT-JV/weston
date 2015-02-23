@@ -60,6 +60,15 @@
       <arg name="width" type="int"/>
       <arg name="height" type="int"/>
     </event>
+
+    <request name="set_content">
+      <description summary="tied ivi_surface and wl_surface">
+        This request ties ivi_surface and wl_surface that do not have a relationship
+        with wl_surface.
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+
   </interface>
 
   <interface name="ivi_application" version="1">
@@ -99,7 +108,7 @@
         ivi_id which is assigned to the ivi_surface is free for reuse.
       </description>
       <arg name="ivi_id" type="uint"/>
-      <arg name="surface" type="object" interface="wl_surface"/>
+      <arg name="surface" type="object" interface="wl_surface" allow-null="true"/>
       <arg name="id" type="new_id" interface="ivi_surface"/>
     </request>
 
