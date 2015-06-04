@@ -92,13 +92,8 @@ PACKAGECONFIG[launch] = "--enable-weston-launch,--disable-weston-launch,libpam"
 # Weston with libinput backend
 PACKAGECONFIG[libinput] = "--enable-libinput-backend,--disable-libinput-backend,libinput"
 
-do_configure_prepend() {
-        cp -v ${STAGING_DIR_NATIVE}/${libdir}/pkgconfig/wayland-scanner.pc ${STAGING_DIR_TARGET}/${libdir}/pkgconfig/
-}
-
 do_install_append() {
         # Weston doesn't need the .la files to load modules, so wipe them
         rm -vf ${D}/${libdir}/weston/*.la
-        rm -v ${STAGING_DIR_TARGET}/${libdir}/pkgconfig/wayland-scanner.pc
 }
 
