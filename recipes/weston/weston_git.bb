@@ -102,3 +102,4 @@ do_install_append() {
         rm -v ${STAGING_DIR_TARGET}/${libdir}/pkgconfig/wayland-scanner.pc
 }
 
+PARALLEL_MAKE = " "
