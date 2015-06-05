@@ -97,3 +97,4 @@ do_install_append() {
         rm -vf ${D}/${libdir}/weston/*.la
 }
 
+PARALLEL_MAKE = " "
