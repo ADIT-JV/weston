@@ -24,8 +24,14 @@ cd %{name}-%{version}
 make install DEST_DIR=%{_topdir}/../sysroot
 make install DEST_DIR=%{buildroot}
 
+%post
+if [ -e /usr/lib/weston/ivi-shell.so ]; then
+    mv /usr/lib/weston/ivi-shell.so /usr/lib/weston/ivi-shell.so.org
+fi
+ln -sf /usr/lib/weston/ivi-shell-adit.so /usr/lib/weston/ivi-shell.so
+
 %files
-%{_libdir}/weston/ivi-shell.so
+%{_libdir}/weston/ivi-shell-adit.so
 /home/pulse/.config/ias.conf.ivi
 /home/pulse/.config/weston.ini.ivi
 /root/.config/ias.conf.ivi

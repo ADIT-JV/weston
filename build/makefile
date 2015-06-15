@@ -15,7 +15,7 @@ SUBCOMP_NAME  = $(notdir $(shell pwd))
 
 ARCHIVE       =
 PROGRAM       =
-SHAREDLIB     = $(LIBRARY_DIR)/ivi-shell.so
+SHAREDLIB     = $(LIBRARY_DIR)/ivi-shell-adit.so
 
 IVI_SHELL_DIR = $(SOURCE_DIR)/ivi-shell
 SHARED_DIR    = $(SOURCE_DIR)/shared
