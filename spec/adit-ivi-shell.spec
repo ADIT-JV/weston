@@ -7,6 +7,8 @@ Vendor:         ADIT
 License:        MIT
 Source0:        %{name}-%{version}.tar.bz2
 
+Requires: weston
+
 %description
 This package contains ivi-shell library
 
@@ -38,5 +40,9 @@ ln -sf /usr/lib/weston/ivi-shell-adit.so /usr/lib/weston/ivi-shell.so
 /root/.config/weston.ini.ivi
 
 %changelog
+* Fri Jun 26 2015 ADIT
+- Add package require
+* Fri Jun 15 2015 ADIT
+- Rename ivi-shell.so to ivi-shell-adit.so
 * Fri Feb 06 2015 ADIT
 - Initial version
