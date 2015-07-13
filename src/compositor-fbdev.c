@@ -45,6 +45,7 @@
 #include "libinput-seat.h"
 #include "gl-renderer.h"
 #include "presentation_timing-server-protocol.h"
+#include "gal2d-renderer.h"
 
 struct fbdev_compositor {
 	struct weston_compositor base;
@@ -53,6 +54,7 @@ struct fbdev_compositor {
 	struct udev *udev;
 	struct udev_input input;
 	int use_pixman;
+	int use_gal2d;
 	struct wl_listener session_listener;
 	EGLNativeDisplayType display;
 };
@@ -98,9 +100,11 @@ struct fbdev_parameters {
 	int tty;
 	char *device;
 	int use_gl;
+	int use_gal2d;
 };
 
 struct gl_renderer_interface *gl_renderer;
+struct gal2d_renderer_interface *gal2d_renderer;
 
 static const char default_seat[] = "seat0";
 
@@ -482,7 +486,7 @@ static void fbdev_output_disable(struct weston_output *base);
 
 static int
 fbdev_output_create(struct fbdev_compositor *compositor,
-                    const char *device)
+                   int x, int y, const char *device)
 {
 	struct fbdev_output *output;
 	struct weston_config_section *section;
@@ -493,7 +497,8 @@ fbdev_output_create(struct fbdev_compositor *compositor,
 	uint32_t config_transform;
 	char *s;
 
-	weston_log("Creating fbdev output.\n");
+
+	weston_log("Creating fbdev output. %s x=%d y=%d\n", device, x, y);
 
 	output = zalloc(sizeof *output);
 	if (output == NULL)
@@ -546,7 +551,7 @@ fbdev_output_create(struct fbdev_compositor *compositor,
 	free(s);
 
 	weston_output_init(&output->base, &compositor->base,
-	                   0, 0, output->fb_info.width_mm,
+	                   x, y, output->fb_info.width_mm,
 	                   output->fb_info.height_mm,
 	                   config_transform,
 			   1);
@@ -569,8 +574,33 @@ fbdev_output_create(struct fbdev_compositor *compositor,
 	if (compositor->use_pixman) {
 		if (pixman_renderer_output_create(&output->base) < 0)
 			goto out_shadow_surface;
-	} else {
-		setenv("HYBRIS_EGLPLATFORM", "wayland", 1);
+	} 
+	else if(compositor->use_gal2d) {
+
+		char* fbenv = getenv("FB_FRAMEBUFFER_0");
+		setenv("FB_FRAMEBUFFER_0", device, 1);
+		output->display = fbGetDisplay(compositor->base.wl_display);
+		if (output->display == NULL) {
+			fprintf(stderr, "failed to get display\n");
+			return 0;
+		}
+
+		output->window = fbCreateWindow(output->display, -1, -1, 0, 0);
+		if (output->window == NULL) {
+			fprintf(stderr, "failed to create window\n");
+			 return 0;
+		}
+		setenv("FB_FRAMEBUFFER_0", fbenv, 1);
+
+		if (gal2d_renderer->output_create(&output->base,
+					output->display,
+					(NativeWindowType)output->window) < 0) {
+			weston_log("gal_renderer_output_create failed.\n");
+			goto out_shadow_surface;
+		}
+
+	}
+	else {
 		output->window = fbCreateWindow(compositor->display, -1, -1, 0, 0);
 		if (output->window == NULL) {
 			fprintf(stderr, "failed to create window\n");
@@ -639,7 +669,11 @@ fbdev_output_destroy(struct weston_output *base)
 			free(output->shadow_buf);
 			output->shadow_buf = NULL;
 		}
-	} else {
+	}
+	else if (compositor->use_gal2d) {
+		gal2d_renderer->output_destroy(base);
+	}
+	else {
 		gl_renderer->output_destroy(base);
 	}
 
@@ -702,7 +736,7 @@ fbdev_output_reenable(struct fbdev_compositor *compositor,
 		 * are re-initialised. */
 		device = output->device;
 		fbdev_output_destroy(base);
-		fbdev_output_create(compositor, device);
+		fbdev_output_create(compositor, 0, 0, device);
 
 		return 0;
 	}
@@ -860,7 +894,10 @@ fbdev_compositor_create(struct wl_display *display, int *argc, char *argv[],
 	compositor->base.restore = fbdev_restore;
 
 	compositor->prev_state = WESTON_COMPOSITOR_ACTIVE;
-	compositor->use_pixman = !param->use_gl;
+	compositor->use_gal2d = param->use_gal2d;
+	weston_log("compositor->use_gal2d=%d\n", compositor->use_gal2d);
+	if(param->use_gl == 0 && param->use_gal2d == 0)
+		compositor->use_pixman = 1;
 
 	for (key = KEY_F1; key < KEY_F9; key++)
 		weston_compositor_add_key_binding(&compositor->base, key,
@@ -870,7 +907,50 @@ fbdev_compositor_create(struct wl_display *display, int *argc, char *argv[],
 	if (compositor->use_pixman) {
 		if (pixman_renderer_init(&compositor->base) < 0)
 			goto out_launcher;
-	} else {
+	}
+	else if (compositor->use_gal2d) {
+		int x = 0, y = 0;
+		int i=0;
+		int count = 0;
+		int k=0, dispCount = 0;
+		char displays[5][32];
+		gal2d_renderer = weston_load_module("gal2d-renderer.so",
+						 "gal2d_renderer_interface");
+		if (!gal2d_renderer) {
+			weston_log("could not load gal2d renderer\n");
+			goto out_launcher;
+		}
+
+		if (gal2d_renderer->create(&compositor->base) < 0) {
+			weston_log("gal2d_renderer_create failed.\n");
+			goto out_launcher;
+		}
+
+		weston_log("param->device=%s\n",param->device);
+		count = strlen(param->device);
+
+		for(i= 0; i < count; i++) {
+			if(param->device[i] == ',')	{
+				displays[dispCount][k] = '\0';
+				dispCount++;
+				k = 0;
+				continue;
+			}
+			displays[dispCount][k++] = param->device[i];
+		}
+		displays[dispCount][k] = '\0';
+		dispCount++;
+
+		for(i=0; i<dispCount; i++)
+		{
+			if (fbdev_output_create(compositor, x, y, displays[i]) < 0)
+				goto out_pixman;
+			x += container_of(compositor->base.output_list.prev,
+								  struct weston_output,
+								  link)->width;
+		}
+	}
+	else {
 		gl_renderer = weston_load_module("gl-renderer.so",
 						 "gl_renderer_interface");
 		if (!gl_renderer) {
@@ -892,9 +972,9 @@ fbdev_compositor_create(struct wl_display *display, int *argc, char *argv[],
 			goto out_launcher;
 		}
 	}
-
-	if (fbdev_output_create(compositor, param->device) < 0)
-		goto out_pixman;
+	if(!compositor->use_gal2d)
+		if (fbdev_output_create(compositor, 0, 0, param->device) < 0)
+			goto out_pixman;
 
 	udev_input_init(&compositor->input, &compositor->base, compositor->udev, seat_id);
 
@@ -927,13 +1007,15 @@ backend_init(struct wl_display *display, int *argc, char *argv[],
 	struct fbdev_parameters param = {
 		.tty = 0, /* default to current tty */
 		.device = "/dev/fb0", /* default frame buffer */
-		.use_gl = 0,
+		.use_gl = 1,
+		.use_gal2d = 0,
 	};
 
 	const struct weston_option fbdev_options[] = {
 		{ WESTON_OPTION_INTEGER, "tty", 0, &param.tty },
 		{ WESTON_OPTION_STRING, "device", 0, &param.device },
-		{ WESTON_OPTION_BOOLEAN, "use-gl", 0, &param.use_gl },
+		{ WESTON_OPTION_INTEGER, "use-gl", 0, &param.use_gl },
+		{ WESTON_OPTION_INTEGER, "use-gal2d", 0, &param.use_gal2d },
 	};
 
 	parse_options(fbdev_options, ARRAY_LENGTH(fbdev_options), argc, argv);
