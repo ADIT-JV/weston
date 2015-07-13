@@ -55,7 +55,10 @@ typedef EGLBoolean (EGLAPIENTRYP PFNEGLUNBINDWAYLANDDISPLAYWL) (EGLDisplay dpy, 
  *
  * Detect this, and provide our own definitions if necessary.
  */
-#ifndef EGL_WAYLAND_BUFFER_WL
+/*TODO: imx6 eglext.h defines EGL_WAYLAND_BUFFER_WL but it does not define
+EGL_TEXTURE_Y_U_V_WL etc. Therefore, we are defining them explicitly here.
+They are required by gl-renderer. Therefore, they are not used for gal2d-renderer*/
+#if 1
 #define EGL_WAYLAND_BUFFER_WL		0x31D5 /* eglCreateImageKHR target */
 #define EGL_WAYLAND_PLANE_WL		0x31D6 /* eglCreateImageKHR target */
 
