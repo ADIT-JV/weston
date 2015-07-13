@@ -54,6 +54,12 @@ GROUPADD_PARAM_${PN} = "--system weston-launch"
 
 EXTRA_OEMAKE_append = " \
   libexecdir="/usr/lib/weston" \
+  COMPOSITOR_LIBS="-lGLESv2 -lEGL -lwayland-server -lxkbcommon -lpixman-1" \
+  COMPOSITOR_CFLAGS="-I ${STAGING_DIR_HOST}/usr/include/pixman-1 -DLINUX=1 -DEGL_API_FB -DEGL_API_WL" \
+  FB_COMPOSITOR_CFLAGS="-DLINUX=1 -DEGL_API_FB -DEGL_API_WL -I $WLD/include" \
+  FB_COMPOSITOR_LIBS="-lGLESv2 -lEGL -lwayland-server -lxkbcommon" \
+  GAL2D_COMPOSITOR_LIBS="-lGAL -ludev -lmtdev" \
+  SIMPLE_EGL_CLIENT_CFLAGS="-DLINUX -DEGL_API_FB -DEGL_API_WL" \
 "
 
 EXTRA_OECONF_append = " \
@@ -67,10 +73,10 @@ EXTRA_OECONF_append = " \
   --disable-rpi-compositor \
   --disable-xwayland \
   --disable-xwayland-test \
-  WESTON_NATIVE_BACKEND=drm-backend.so \
+  WESTON_NATIVE_BACKEND=fbdev-backend.so \
 "
 
-PACKAGECONFIG = "x86 libinput"
+PACKAGECONFIG = "fbdev libinput"
 
 #
 # Compositor choices
