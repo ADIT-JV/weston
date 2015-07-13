@@ -56,7 +56,7 @@ struct fbdev_compositor {
 	int use_pixman;
 	int use_gal2d;
 	struct wl_listener session_listener;
-	EGLNativeDisplayType display;
+	NativeDisplayType display;
 };
 
 struct fbdev_screeninfo {
@@ -92,8 +92,8 @@ struct fbdev_output {
 	void *shadow_buf;
 	uint8_t depth;
 
-	EGLNativeDisplayType display;
-	EGLNativeWindowType  window;
+	NativeDisplayType display;
+	NativeWindowType  window;
 };
 
 struct fbdev_parameters {
@@ -607,7 +607,7 @@ fbdev_output_create(struct fbdev_compositor *compositor,
 			return 0;
 		}
 		if (gl_renderer->output_create(&output->base,
-						(EGLNativeWindowType)output->window,
+						(NativeWindowType)output->window,
 						NULL,
 						gl_renderer->opaque_attribs,
 						NULL, 0) < 0) {
