@@ -1,5 +1,9 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <iasconfig>
+<shell>
+    <plugin name='ivi' lib='/usr/lib/ias/ivi-sprite-plugin.so' defer="1"/>
+</shell>
+
 <backend>
     <startup>
        <crtc name='HDMI1' model='classic' mode='preferred'>

@@ -1,5 +1,6 @@
 [core]
 shell=ivi-shell.so
+modules=ivi_plugin_framework.so
 
 [ivi-shell]
 ivi-module=ivi-controller.so
