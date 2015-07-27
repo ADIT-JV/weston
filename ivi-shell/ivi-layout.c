@@ -3003,6 +3003,31 @@ ivi_layout_create_splash_surface(struct ivi_layout_surface *ivisurf,
 	return 0;
 }
 
+static int32_t
+screen_add_layer_behind(struct ivi_layout_screen *iviscrn,
+			struct ivi_layout_layer *addlayer)
+{
+	struct ivi_layout *layout = get_instance();
+	struct ivi_layout_layer *ivilayer = NULL;
+	struct ivi_layout_layer *next = NULL;
+
+	wl_list_for_each_safe(ivilayer, next, &layout->layer_list, link) {
+		if (ivilayer->id_layer == addlayer->id_layer) {
+			if (!wl_list_empty(&ivilayer->pending.link)) {
+				wl_list_remove(&ivilayer->pending.link);
+			}
+			wl_list_init(&ivilayer->pending.link);
+			wl_list_insert(iviscrn->pending.layer_list.prev,
+				       &ivilayer->pending.link);
+			break;
+		}
+	}
+
+	iviscrn->event_mask |= IVI_NOTIFICATION_ADD;
+
+	return IVI_SUCCEEDED;
+}
+
 int32_t
 ivi_layout_configure_splash_surface(struct ivi_layout_surface *ivisurf,
 				    int32_t width, int32_t height)
@@ -3075,7 +3100,7 @@ ivi_layout_configure_splash_surface(struct ivi_layout_surface *ivisurf,
 		return ret;
 	}
 
-	ret = ivi_layout_screen_set_render_order(iviscreen, &ivilayer, 1);
+	ret = screen_add_layer_behind(iviscreen, ivilayer);
 	if (IVI_SUCCEEDED != ret) {
 		return ret;
 	}
