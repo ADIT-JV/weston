@@ -81,6 +81,7 @@ struct ivi_layout_surface_properties
 	bool visibility;
 	int32_t transition_type;
 	uint32_t transition_duration;
+	bool is_forced_configure_event;
 };
 
 struct ivi_layout_layer_properties
@@ -787,6 +788,15 @@ struct ivi_controller_interface {
 	 * \return == NULL if the method call was failed
 	 */
 	void *(*get_native_surface)(struct weston_surface *surface);
+
+	/**
+	 * \brief set the flag to forcibly generate a configure event.
+	 *
+	 * \return IVI_SUCCEEDED if the method call was successful
+	 * \return IVI_FAILED if the method call was failed
+	 */
+	int32_t (*surface_set_is_forced_configure_event)(struct weston_surface *surface,
+							 bool is_force);
 };
 
 #ifdef __cplusplus

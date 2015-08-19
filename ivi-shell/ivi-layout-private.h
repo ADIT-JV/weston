@@ -220,6 +220,8 @@ ivi_layout_layer_set_render_order(struct ivi_layout_layer *ivilayer,
 				  int32_t number);
 void
 ivi_layout_transition_move_layer_cancel(struct ivi_layout_layer *layer);
+bool
+ivi_layout_surface_is_forced_configure_event(struct ivi_layout_surface *ivisurf);
 int
 load_controller_modules(struct weston_compositor *compositor, const char *modules,
 			int *argc, char *argv[]);
