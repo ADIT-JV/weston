@@ -5218,6 +5218,18 @@ weston_parse_transform(const char *transform, uint32_t *out)
 	return -1;
 }
 
+WL_EXPORT void *
+weston_get_native_surface(struct weston_surface *surface)
+{
+	if (!surface->compositor)
+		return NULL;
+
+	if (!surface->compositor->renderer)
+		return NULL;
+
+	return surface->compositor->renderer->get_native_surface(surface);
+}
+
 WL_EXPORT const char *
 weston_transform_to_string(uint32_t output_transform)
 {

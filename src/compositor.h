@@ -581,6 +581,7 @@ struct weston_renderer {
 			       float blue, float alpha);
 	void (*destroy)(struct weston_compositor *ec);
 
+	void *(*get_native_surface)(struct weston_surface *surface);
 
 	/** See weston_surface_get_content_size() */
 	void (*surface_get_content_size)(struct weston_surface *surface,
@@ -1574,6 +1575,9 @@ weston_parse_transform(const char *transform, uint32_t *out);
 
 const char *
 weston_transform_to_string(uint32_t output_transform);
+
+void *
+weston_get_native_surface(struct weston_surface *surface);
 
 #ifdef  __cplusplus
 }
