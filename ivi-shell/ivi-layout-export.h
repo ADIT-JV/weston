@@ -780,6 +780,13 @@ struct ivi_controller_interface {
 				int32_t x, int32_t y,
 				int32_t width, int32_t height);
 
+	/**
+	 * \brief get native surface from weston_surface.
+	 *
+	 * \return != NULL if the method call was successful
+	 * \return == NULL if the method call was failed
+	 */
+	void *(*get_native_surface)(struct weston_surface *surface);
 };
 
 #ifdef __cplusplus
