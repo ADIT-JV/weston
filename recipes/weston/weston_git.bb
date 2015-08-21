@@ -19,6 +19,7 @@ inherit autotools pkgconfig useradd
 
 DEPENDS = "libxkbcommon gdk-pixbuf pixman cairo glib-2.0 jpeg"
 DEPENDS += "wayland virtual/egl pango "
+DEPENDS += "libx11 "
 
 RDEPENDS_${PN} += "xkeyboard-config weston-examples"
 RRECOMMENDS_${PN} = "liberation-fonts"
