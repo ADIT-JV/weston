@@ -111,6 +111,8 @@ struct ivi_layout {
 
 	struct ivi_layout_transition_set *transitions;
 	struct wl_list pending_transition_list;
+
+	struct weston_keyboard_grab keyboard_grab;
 };
 
 struct ivi_layout *get_instance(void);
