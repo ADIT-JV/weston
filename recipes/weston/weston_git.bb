@@ -2,8 +2,8 @@ SUMMARY = "Weston, a Wayland compositor"
 DESCRIPTION = "Weston is the reference implementation of a Wayland compositor"
 HOMEPAGE = "http://wayland.freedesktop.org"
 LICENSE = "MIT"
-LIC_FILES_CHKSUM = "file://COPYING;md5=275efac2559a224527bd4fd593d38466 \
-                    file://src/compositor.c;endline=23;md5=a9793f1edc8d1a4c344ca8ae252352fb"
+LIC_FILES_CHKSUM = "file://COPYING;md5=d79ee9e66bb0f95d3386a7acae780b70 \
+                    file://src/compositor.c;endline=23;md5=1d535fed266cf39f6d8c0647f52ac331"
 
 ADIT_SOURCE_GIT = "${BUILD_DIR}/weston"
 S= "${ADIT_SOURCE_GIT}"
