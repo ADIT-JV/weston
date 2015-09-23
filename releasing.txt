@@ -8,11 +8,11 @@ To make a release of Weston and/or Wayland, follow these steps.
   1.  Update the first three lines of configure.ac to the intended
       version, commit.  Also note that Weston includes versioned
       dependencies on 'wayland-server' and 'wayland-client' in
-      configure.ac which typically need updated as well.  Then commit
+      configure.ac which occasionally need updated as well.  Then commit
       your changes:
 
       $ export RELEASE_NUMBER="x.y.z"
-      $ export RELEASE_NAME="[alpha|RC1|RC2|official|point]"
+      $ export RELEASE_NAME="[alpha|beta|RC1|RC2|official|point]"
       $ git status
       $ git commit configure.ac -m "configure.ac: bump to version $RELEASE_NUMBER for the $RELEASE_NAME release"
       $ git push
@@ -22,7 +22,8 @@ To make a release of Weston and/or Wayland, follow these steps.
       you install it to a location other than /usr/bin/Xwayland, specify
       this in the following env var:
 
-      export DISTCHECK_CONFIGURE_FLAGS="--with-xserver-path=<your-Xwayland-path>"
+	  XWAYLAND=$(which Xwayland)  # Or specify your own path
+      export DISTCHECK_CONFIGURE_FLAGS="--with-xserver-path=$XWAYLAND"
 
       If you're using a locally installed libinput or other dependency
       libraries, you'll likely need to set a few other environment
@@ -58,7 +59,7 @@ To make a release of Weston and/or Wayland, follow these steps.
       listing of the most notable changes.  For x.y.0 releases, indicate
       the schedule for the x.y+1.0 release.
 
-  5.  Send the release announcements to
+  5.  pgp sign the the release announcements and send them to
       wayland-devel@lists.freedesktop.org
 
   6.  Get your freshly posted release email URL from
