@@ -4796,3 +4796,15 @@ weston_compositor_get_user_data(struct weston_compositor *compositor)
 {
 	return compositor->user_data;
 }
+
+WL_EXPORT void *
+weston_get_native_surface(struct weston_surface *surface)
+{
+       if (!surface->compositor)
+               return NULL;
+
+       if (!surface->compositor->renderer)
+               return NULL;
+
+       return surface->compositor->renderer->get_native_surface(surface);
+}

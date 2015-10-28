@@ -1035,6 +1035,19 @@ gal2d_renderer_attach(struct weston_surface *es, struct weston_buffer *buffer)
 		gal2d_renderer_attach_egl(es, buffer);
 }
 
+static void *
+gal2d_get_native_surface(struct weston_surface *surface)
+{
+        struct gal2d_surface_state *gs;
+
+        if (!surface)
+                return NULL;
+
+        gs = get_surface_state(surface);
+
+        return gs->gco_Surface;
+}
+
 static void
 surface_state_destroy(struct gal2d_surface_state *gs, struct gal2d_renderer *gr)
 {
@@ -1193,6 +1206,7 @@ gal2d_renderer_create(struct weston_compositor *ec, int use_drm)
 	gr->base.attach = gal2d_renderer_attach;
 	gr->base.surface_set_color = gal2d_renderer_surface_set_color;
 	gr->base.destroy = gal2d_renderer_destroy;
+	gr->base.get_native_surface = gal2d_get_native_surface;
     
     /* Construct the gcoOS object. */
 	gcmONERROR(gcoOS_Construct(gcvNULL, &gr->gcos));

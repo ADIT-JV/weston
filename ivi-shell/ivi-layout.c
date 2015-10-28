@@ -2865,6 +2865,12 @@ ivi_layout_surface_add_configured_listener(struct ivi_layout_surface* ivisurf,
 	wl_signal_add(&ivisurf->configured, listener);
 }
 
+static void *
+ivi_layout_get_native_surface(struct weston_surface *surface)
+{
+       return weston_get_native_surface(surface);
+}
+
 static struct ivi_controller_interface ivi_controller_interface = {
 	/**
 	 * commit all changes
@@ -2960,6 +2966,8 @@ static struct ivi_controller_interface ivi_controller_interface = {
 	 */
 	.surface_get_size		= ivi_layout_surface_get_size,
 	.surface_dump			= ivi_layout_surface_dump,
+
+	.get_native_surface             = ivi_layout_get_native_surface,
 
 	/**
 	 * remove notification by callback on property changes of ivi_surface/layer

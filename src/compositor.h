@@ -579,6 +579,7 @@ struct weston_renderer {
 			       float blue, float alpha);
 	void (*destroy)(struct weston_compositor *ec);
 
+	void *(*get_native_surface)(struct weston_surface *surface);
 
 	/** See weston_surface_get_content_size() */
 	void (*surface_get_content_size)(struct weston_surface *surface,
@@ -1607,6 +1608,9 @@ weston_seat_get_pointer(struct weston_seat *seat);
 
 struct weston_touch *
 weston_seat_get_touch(struct weston_seat *seat);
+
+void *
+weston_get_native_surface(struct weston_surface *surface);
 
 #ifdef  __cplusplus
 }

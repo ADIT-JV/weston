@@ -784,6 +784,14 @@ struct ivi_controller_interface {
 				int32_t width, int32_t height);
 
 	/**
+	 * \brief get native surface from weston_surface.
+	 *
+	 * \return != NULL if the method call was successful
+	 * \return == NULL if the method call was failed
+	 */
+	void *(*get_native_surface)(struct weston_surface *surface);
+
+	/**
 	 * remove notification by callback on property changes of ivi_surface
 	 */
 	void (*surface_remove_notification_by_callback)(struct ivi_layout_surface *ivisurf,
