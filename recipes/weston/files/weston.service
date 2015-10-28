@@ -1,0 +1,11 @@
+[Unit]
+Description=Weston-IVI-Shell
+[Service]
+Type=Oneshot
+Environment=XDG_RUNTIME_DIR=/tmp
+ExecStart=/usr/bin/weston --tty=1
+Restart=always
+TimeoutSec=2
+
+[Install]
+WantedBy=multi-user.target
