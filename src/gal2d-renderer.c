@@ -691,8 +691,8 @@ repaint_region(struct weston_view *ev, struct weston_output *output, struct gal2
 
 	gcmVERIFY_OK(gcoSURF_Unlock(srcSurface, gcvNULL));
 
-	srcRect.left = ev->geometry.x < 0.0 ? gal2d_int_from_double(fabsf(ev->geometry.x)) : 0;
-	srcRect.top = 0; /*es->geometry.y < 0.0 ? gal2d_int_from_double(fabsf(es->geometry.y)) : 0;*/
+	srcRect.left = rects[0].x1 - bb_rects[0].x1;
+	srcRect.top = rects[0].y1 - bb_rects[0].y1;
 	srcRect.right = ev->surface->width;
 	srcRect.bottom = ev->surface->height;
 
