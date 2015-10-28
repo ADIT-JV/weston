@@ -215,6 +215,21 @@ gl_renderer_la_SOURCES =			\
 	shared/helpers.h
 endif
 
+if ENABLE_GAL2D_RENDERER
+module_LTLIBRARIES += gal2d-renderer.la
+gal2d_renderer_la_LDFLAGS = -module -avoid-version
+gal2d_renderer_la_LIBADD = $(COMPOSITOR_LIBS) $(EGL_LIBS)
+gal2d_renderer_la_CFLAGS =			\
+	$(COMPOSITOR_CFLAGS)			\
+	$(EGL_CFLAGS)				\
+	$(AM_CFLAGS)
+gal2d_renderer_la_SOURCES =			\
+	src/gal2d-renderer.h			\
+	src/gal2d-renderer.c			\
+	src/vertex-clipping.c			\
+	src/vertex-clipping.h
+endif
+
 if ENABLE_X11_COMPOSITOR
 module_LTLIBRARIES += x11-backend.la
 x11_backend_la_LDFLAGS = -module -avoid-version
@@ -239,6 +254,27 @@ INPUT_BACKEND_SOURCES =				\
 	src/libinput-device.c			\
 	src/libinput-device.h			\
 	shared/helpers.h
+	
+if ENABLE_IMX6DRM_COMPOSITOR
+module_LTLIBRARIES += imx6drm-backend.la
+imx6drm_backend_la_LDFLAGS = -module -avoid-version
+imx6drm_backend_la_LIBADD =				\
+	$(COMPOSITOR_LIBS)			\
+	$(IMX6DRM_COMPOSITOR_LIBS)			\
+	$(INPUT_BACKEND_LIBS)			\
+	libshared.la -lrt			\
+	libsession-helper.la
+imx6drm_backend_la_CFLAGS =				\
+	$(COMPOSITOR_CFLAGS)			\
+	$(IMX6DRM_COMPOSITOR_CFLAGS)			\
+	$(EGL_CFLAGS)				\
+	$(AM_CFLAGS)
+imx6drm_backend_la_SOURCES =			\
+	src/compositor-imx6drm.c			\
+	$(INPUT_BACKEND_SOURCES)		\
+	src/libbacklight.c			\
+	src/libbacklight.h
+endif
 
 if ENABLE_DRM_COMPOSITOR
 module_LTLIBRARIES += drm-backend.la
