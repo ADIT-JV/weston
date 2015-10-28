@@ -2871,6 +2871,41 @@ ivi_layout_get_native_surface(struct weston_surface *surface)
        return weston_get_native_surface(surface);
 }
 
+static int32_t
+ivi_layout_surface_set_is_forced_configure_event(struct weston_surface *surface,
+                                                bool is_forced)
+{
+       struct ivi_layout *layout = get_instance();
+       struct ivi_layout_surface *ivisurf = NULL;
+
+       if (surface == NULL) {
+               weston_log("ivi_layout_surface_set_is_forced_configure_event: invalid argument\n");
+               return IVI_FAILED;
+       }
+
+       wl_list_for_each(ivisurf, &layout->surface_list, link) {
+               if (ivisurf->surface == surface) {
+                       ivisurf->pending.prop.is_forced_configure_event = is_forced;
+                       ivisurf->prop.is_forced_configure_event = is_forced;
+                       return IVI_SUCCEEDED;
+               }
+       }
+
+       return IVI_FAILED;
+}
+
+bool
+ivi_layout_surface_is_forced_configure_event(struct ivi_layout_surface *ivisurf)
+{
+       if (ivisurf == NULL) {
+               weston_log("ivi_layout_surface_is_forced_configure_event: invalid argument\n");
+               return false;
+       }
+
+       return ivisurf->prop.is_forced_configure_event;
+}
+
+
 static struct ivi_controller_interface ivi_controller_interface = {
 	/**
 	 * commit all changes
@@ -2968,6 +3003,8 @@ static struct ivi_controller_interface ivi_controller_interface = {
 	.surface_dump			= ivi_layout_surface_dump,
 
 	.get_native_surface             = ivi_layout_get_native_surface,
+	.surface_set_is_forced_configure_event
+                                        = ivi_layout_surface_set_is_forced_configure_event,
 
 	/**
 	 * remove notification by callback on property changes of ivi_surface/layer
