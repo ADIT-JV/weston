@@ -165,6 +165,20 @@ if test x$enable_x11_compositor = xyes; then
   AC_DEFINE([BUILD_X11_COMPOSITOR], [1], [Build the X11 compositor])
 fi
 
+AC_ARG_ENABLE(gal2d-renderer, [  --enable-gal2d-renderer],,
+	      enable_gal2d_renderer=yes)
+AM_CONDITIONAL(ENABLE_GAL2D_RENDERER, test x$enable_gal2d_renderer = xyes)
+if test x$enable_gal2d_renderer = xyes; then
+  AC_DEFINE([BUILD_GAL2D_RENDERER], [1], [Build the Gal2D renderer for IMX6])
+fi
+
+AC_ARG_ENABLE(imx6drm-compositor, [  --enable-imx6drm-compositor],,
+	      enable_imx6drm_compositor=yes)
+AM_CONDITIONAL(ENABLE_IMX6DRM_COMPOSITOR, test x$enable_imx6drm_compositor = xyes)
+if test x$enable_imx6drm_compositor = xyes; then
+  AC_DEFINE([BUILD_IMX6DRM_COMPOSITOR], [1], [Build the DRM compositor for IMX6])
+  PKG_CHECK_MODULES(IMX6DRM_COMPOSITOR, [libudev >= 136 libdrm >= 2.4.30 mtdev >= 1.1.0])
+fi
 
 AC_ARG_ENABLE(drm-compositor, [  --enable-drm-compositor],,
 	      enable_drm_compositor=yes)
