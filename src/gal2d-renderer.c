@@ -1226,7 +1226,7 @@ gal2d_renderer_create(struct weston_compositor *ec)
 	gr->base.surface_set_color = gal2d_renderer_surface_set_color;
 	gr->base.destroy = gal2d_renderer_destroy;
 	gr->base.get_native_surface = gal2d_get_native_surface;
-    
+	gr->localInfo = NULL;
     /* Construct the gcoOS object. */
 	gcmONERROR(gcoOS_Construct(gcvNULL, &gr->gcos));
 
