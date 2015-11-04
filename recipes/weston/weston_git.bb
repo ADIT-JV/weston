@@ -19,7 +19,7 @@ inherit autotools pkgconfig useradd
 
 DEPENDS = "libxkbcommon gdk-pixbuf pixman cairo glib-2.0 jpeg"
 DEPENDS += "wayland virtual/egl pango "
-DEPENDS += "libx11 libinput \
+DEPENDS += "libinput \
             ${@base_conditional('GPU_HW_VENDOR', 'VIVANTE', 'libdrm', '', d)} \
             ${@base_conditional('GPU_HW_VENDOR', 'INTEL', 'libdrm', '', d)} "
 
@@ -67,7 +67,8 @@ EXTRA_OEMAKE_append += "${@base_conditional('GPU_HW_VENDOR', 'VIVANTE', ' \
   COMPOSITOR_CFLAGS="-I ${STAGING_DIR_HOST}/usr/include/pixman-1 -DLINUX=1 -DEGL_API_FB -DEGL_API_WL" \
   FB_COMPOSITOR_CFLAGS="-DLINUX=1 -DEGL_API_FB -DEGL_API_WL -I $WLD/include" \
   FB_COMPOSITOR_LIBS="-lGLESv2 -lEGL -lwayland-server -lxkbcommon" \
-  GAL2D_COMPOSITOR_LIBS="-lGAL -ludev -lmtdev" \
+  EGL_TESTS_CFLAGS="-DLINUX -DEGL_API_FB -DEGL_API_WL" \
+  CLIENT_CFLAGS="-I ${STAGING_INCDIR}/cairo -I ${STAGING_INCDIR}/pixman-1 -DLINUX -DEGL_API_FB -DEGL_API_WL" \
   SIMPLE_EGL_CLIENT_CFLAGS="-DLINUX -DEGL_API_FB -DEGL_API_WL"', '', d)}"
 
 EXTRA_OECONF_append = " \
