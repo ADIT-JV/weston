@@ -19,7 +19,9 @@ inherit autotools pkgconfig useradd
 
 DEPENDS = "libxkbcommon gdk-pixbuf pixman cairo glib-2.0 jpeg"
 DEPENDS += "wayland virtual/egl pango "
-DEPENDS += "libx11 libinput "
+DEPENDS += "libx11 libinput \
+            ${@base_conditional('GPU_HW_VENDOR', 'VIVANTE', 'libdrm', '', d)} \
+            ${@base_conditional('GPU_HW_VENDOR', 'INTEL', 'libdrm', '', d)} "
 
 RDEPENDS_${PN} += "xkeyboard-config weston-examples"
 RRECOMMENDS_${PN} = "liberation-fonts"
