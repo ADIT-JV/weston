@@ -97,6 +97,21 @@ weston_SOURCES =					\
 	shared/platform.h				\
 	src/weston-egl-ext.h
 
+if SYSTEMD_NOTIFY_SUPPORT
+module_LTLIBRARIES += systemd-notify.la
+systemd_notify_la_LDFLAGS = -module -avoid-version
+systemd_notify_la_LIBADD = $(SYSTEMD_DAEMON_LIBS)
+systemd_notify_la_CFLAGS =			\
+	$(SYSTEMD_DAEMON_LIBS)			\
+	$(PIXMAN_CFLAGS)			\
+	$(AM_CFLAGS)
+systemd_notify_la_SOURCES =			\
+	src/systemd-notify.c			\
+	shared/helpers.h			\
+	shared/zalloc.h				\
+	src/compositor.h
+endif
+
 nodist_weston_SOURCES =					\
 	protocol/screenshooter-protocol.c		\
 	protocol/screenshooter-server-protocol.h	\

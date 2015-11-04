@@ -394,14 +394,35 @@ AC_ARG_ENABLE(resize-optimization,
 AS_IF([test "x$enable_resize_optimization" = "xyes"],
       [AC_DEFINE([USE_RESIZE_POOL], [1], [Use resize memory pool as a performance optimization])])
 
-PKG_CHECK_MODULES(SYSTEMD_LOGIN, [libsystemd-login >= 198],
-                  [have_systemd_login=yes], [have_systemd_login=no])
+AC_ARG_ENABLE(systemd-login,
+              AS_HELP_STRING([--enable-systemd-login],
+                             [Enable logind support]),,
+              enable_systemd_login=auto)
+if test x$enable_systemd_login != xno; then
+  PKG_CHECK_MODULES(SYSTEMD_LOGIN,
+                    [libsystemd >= 209],
+                    [have_systemd_login_209=yes;have_systemd_login=yes],
+                    [have_systemd_login_209=no;have_systemd_login=no])
+
+  # Older versions of systemd package systemd-login separately. Fall back on that
+  AS_IF([test x$have_systemd_login != xyes],[
+        PKG_CHECK_MODULES(SYSTEMD_LOGIN,
+                          [libsystemd-login >= 198],
+                          [have_systemd_login=yes],
+                          [have_systemd_login=no])
+        ])
+else
+  have_systemd_login=no
+fi
+
+if test "x$have_systemd_login" = "xno" -a "x$enable_systemd_login" = "xyes"; then
+  AC_MSG_ERROR([systemd-login support explicitly enabled, but can't find libsystemd>=209 or libsystemd-login])
+fi
+
 AS_IF([test "x$have_systemd_login" = "xyes"],
       [AC_DEFINE([HAVE_SYSTEMD_LOGIN], [1], [Have systemd-login])])
 AM_CONDITIONAL(HAVE_SYSTEMD_LOGIN, test "x$have_systemd_login" = "xyes")
 
-PKG_CHECK_MODULES(SYSTEMD_LOGIN_209, [libsystemd-login >= 209],
-                  [have_systemd_login_209=yes], [have_systemd_login_209=no])
 AS_IF([test "x$have_systemd_login_209" = "xyes"],
       [AC_DEFINE([HAVE_SYSTEMD_LOGIN_209], [1], [Have systemd-login >= 209])])
 
@@ -579,6 +600,18 @@ if test x$wayland_scanner = x; then
 	wayland_scanner=`$PKG_CONFIG --variable=wayland_scanner wayland-scanner`
 fi
 
+AC_ARG_ENABLE(systemd_notify,
+              AS_HELP_STRING([--enable-systemd-notify],
+                             [Enables systemd notifications to
+                              notify systemd about weston state
+                              and update watchdog.]),,
+              enable_systemd_notify=no)
+AM_CONDITIONAL(SYSTEMD_NOTIFY_SUPPORT, test x$enable_systemd_notify = xyes)
+if test "x$enable_systemd_notify" = "xyes"; then
+  AC_DEFINE([SYSTEMD_NOTIFY_SUPPORT], [1], [Build the systemd sd_notify support])
+  PKG_CHECK_MODULES(SYSTEMD_DAEMON, [libsystemd])
+fi
+
 AC_CONFIG_FILES([Makefile src/version.h src/weston.pc])
 
 AM_CONDITIONAL([HAVE_GIT_REPO], [test -f $srcdir/.git/logs/HEAD])
@@ -604,6 +637,7 @@ AC_MSG_RESULT([
 
 	weston-launch utility		${enable_weston_launch}
 	systemd-login support		${have_systemd_login}
+	systemd notify support		${enable_systemd_notify}
 
 	DRM Compositor			${enable_drm_compositor}
 	X11 Compositor			${enable_x11_compositor}

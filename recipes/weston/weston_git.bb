@@ -87,9 +87,9 @@ EXTRA_OECONF_append += "${@base_conditional('GPU_HW_VENDOR', 'VIVANTE', 'WESTON_
 EXTRA_OECONF_append += "${@base_conditional('GPU_HW_VENDOR', 'INTEL', 'WESTON_NATIVE_BACKEND=drm-backend.so', '', d)}"
 EXTRA_OECONF_append += "${@base_conditional('GPU_HW_VENDOR', 'LLVMPIPE', 'WESTON_NATIVE_BACKEND=fbdev-backend.so', '', d)}"
 
-PACKAGECONFIG = "${@base_conditional('GPU_HW_VENDOR', 'VIVANTE', 'imx6 gal2d', '', d)}"
-PACKAGECONFIG += "${@base_conditional('GPU_HW_VENDOR', 'INTEL', 'drm', '', d)}"
-PACKAGECONFIG += "${@base_conditional('GPU_HW_VENDOR', 'LLVMPIPE', 'fbdev', '', d)}"
+PACKAGECONFIG = "${@base_conditional('GPU_HW_VENDOR', 'VIVANTE', 'imx6 gal2d systemd-notify', '', d)}"
+PACKAGECONFIG += "${@base_conditional('GPU_HW_VENDOR', 'INTEL', 'drm systemd-notify', '', d)}"
+PACKAGECONFIG += "${@base_conditional('GPU_HW_VENDOR', 'LLVMPIPE', 'fbdev systemd-notify', '', d)}"
 
 #
 # Compositor choices
@@ -110,6 +110,8 @@ PACKAGECONFIG[headless] = "--enable-headless-compositor,--disable-headless-compo
 PACKAGECONFIG[fbdev] = "--enable-fbdev-compositor,--disable-fbdev-compositor,udev mtdev"
 # weston-launch
 PACKAGECONFIG[launch] = "--enable-weston-launch,--disable-weston-launch,libpam"
+# weston-launch
+PACKAGECONFIG[systemd-notify] = "--enable-systemd-notify,--disable-systemd-notify,systemd"
 
 do_configure_prepend() {
         cp -v ${STAGING_DIR_NATIVE}/${libdir}/pkgconfig/wayland-scanner.pc ${STAGING_DIR_TARGET}/${libdir}/pkgconfig/
