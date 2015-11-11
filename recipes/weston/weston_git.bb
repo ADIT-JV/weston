@@ -114,16 +114,11 @@ PACKAGECONFIG[launch] = "--enable-weston-launch,--disable-weston-launch,libpam"
 # weston-launch
 PACKAGECONFIG[systemd-notify] = "--enable-systemd-notify,--disable-systemd-notify,systemd"
 
-do_configure_prepend() {
-        cp -v ${STAGING_DIR_NATIVE}/${libdir}/pkgconfig/wayland-scanner.pc ${STAGING_DIR_TARGET}/${libdir}/pkgconfig/
-}
-
 do_install_append() {
         mkdir -p ${D}/lib/systemd/system
         cp -v ${ADIT_SOURCE_GIT}/recipes/weston/files/weston.service ${D}/lib/systemd/system
         # Weston doesn't need the .la files to load modules, so wipe them
         rm -vf ${D}/${libdir}/weston/*.la
-        rm -v ${STAGING_DIR_TARGET}/${libdir}/pkgconfig/wayland-scanner.pc
 }
 
 PARALLEL_MAKE = " "
