@@ -225,6 +225,39 @@ struct gal2d_renderer_interface *gal2d_renderer;
 
 static const char default_seat[] = "seat0";
 
+static int
+is_modeset_required(struct drm_output *output, struct drm_mode *mode);
+
+static int
+is_modeset_required(struct drm_output *output, struct drm_mode *mode)
+{
+	int ret = 0;
+	struct drm_backend *backend =
+			(struct drm_backend *)output->base.compositor->backend;
+
+	drmModeFBPtr buff_orig = drmModeGetFB(backend->drm.fd, output->original_crtc->buffer_id);
+	drmModeFBPtr buff_next = drmModeGetFB(backend->drm.fd,output->next->fb_id);
+
+	/*check if drm dumb buffer are equal*/
+	if (buff_orig && buff_next &&
+			(buff_orig->width == buff_next->width) &&
+			(buff_orig->height == buff_next->height) &&
+			(buff_orig->bpp == buff_next->bpp) &&
+			(buff_orig->depth == buff_next->depth) &&
+			(mode->mode_info.hdisplay == output->original_crtc->mode.hdisplay) &&
+			(mode->mode_info.vdisplay == output->original_crtc->mode.vdisplay) &&
+			(mode->mode_info.clock == output->original_crtc->mode.clock) &&
+			(mode->mode_info.flags == output->original_crtc->mode.flags) &&
+			(output->original_crtc->x == 0) && (output->original_crtc->y == 0))
+		ret = 0;
+	else
+		ret = 1;
+
+	drmModeFreeFB(buff_orig);
+	drmModeFreeFB(buff_next);
+	return ret;
+}
+
 static void
 drm_output_update_msc(struct drm_output *output, unsigned int seq);
 
@@ -559,15 +592,25 @@ drm_output_repaint(struct weston_output *output_base,
 
 	mode = container_of(output->base.current_mode, struct drm_mode, base);
 	if (!output->current ||
-	    output->current->stride != output->next->stride) {
-		ret = drmModeSetCrtc(backend->drm.fd, output->crtc_id,
-				     output->next->fb_id, 0, 0,
-				     &output->connector_id, 1,
-				     &mode->mode_info);
-		if (ret) {
-			weston_log("set mode failed: %m\n");
-			goto err_pageflip;
+		output->current->stride != output->next->stride) {
+		/*in order to prevent flickering drmModeSetCrtc call will only do a pageflip
+		 * instead of full modeset if the current mode and mode to be set
+		 * and the buffers have compatible properties
+		 * this implementation is imx6 specific*/
+		if (is_modeset_required(output,mode)) {
+			ret = drmModeSetCrtc(backend->drm.fd, output->crtc_id,
+					output->next->fb_id, 0, 0,
+					&output->connector_id, 1,
+					&mode->mode_info);
+			if (ret) {
+				weston_log("set mode failed: %m\n");
+				goto err_pageflip;
+			}
 		}
+		else
+			weston_log("full set mode skipped for %s, modes are compatible\n",
+					output->base.name);
+
 		output_base->set_dpms(output_base, WESTON_DPMS_ON);
 	}
 
