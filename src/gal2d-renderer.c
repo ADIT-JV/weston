@@ -383,9 +383,10 @@ gal2d_clear(struct weston_output *base)
 					&width, &height, &stride));
 	dstRect.right = width;
 	dstRect.bottom = height;
+
 	gcmONERROR(gco2D_SetSource(gr->gcoEngine2d, &dstRect));
 	gcmONERROR(gco2D_SetClipping(gr->gcoEngine2d, &dstRect));
-	gcmONERROR(gco2D_Clear(gr->gcoEngine2d, 1, &dstRect, 0xff0000ff, 0xCC, 0xCC, go->format));
+	gcmONERROR(gco2D_Clear(gr->gcoEngine2d, 1, &dstRect, 0x00000000, 0xCC, 0xCC, go->format));
     gcmONERROR(gcoHAL_Commit(gr->gcoHal, gcvTRUE));
 
 OnError:
@@ -885,14 +886,18 @@ draw_view(struct weston_view *ev, struct weston_output *output,
 	}
 
 	if (pixman_region32_not_empty(&surface_blend)) {
-    
-        gco2D_EnableAlphaBlend(gr->gcoEngine2d,
+		gceSTATUS status = gcvSTATUS_OK;
+
+        status = gco2D_EnableAlphaBlend(gr->gcoEngine2d,
             ev->alpha * 0xFF, ev->alpha * 0xFF,
             gcvSURF_PIXEL_ALPHA_STRAIGHT, gcvSURF_PIXEL_ALPHA_STRAIGHT,
-            gcvSURF_GLOBAL_ALPHA_SCALE, gcvSURF_GLOBAL_ALPHA_SCALE,
-            gcvSURF_BLEND_STRAIGHT, gcvSURF_BLEND_INVERSED,
+            gcvSURF_GLOBAL_ALPHA_SCALE, gcvSURF_GLOBAL_ALPHA_OFF,
+            gcvSURF_BLEND_ONE, gcvSURF_BLEND_SRC_ALPHA_SATURATED,
             gcvSURF_COLOR_STRAIGHT, gcvSURF_COLOR_STRAIGHT);
-            
+
+        if (status != gcvSTATUS_OK)
+            weston_log("ALPHA MODE NOT SUPPORTED\n");
+
 		repaint_region(ev, output, go, &repaint, &surface_blend);
 	}
 
@@ -930,18 +935,25 @@ gal2d_renderer_repaint_output(struct weston_output *output,
 {
     struct gal2d_output_state *go = get_output_state(output);	
  	gctUINT32 i;
+	gctUINT32 fullscreen_clear = 1;
 
 	if (use_output(output) < 0)
 		return;
-        
-	for (i = 0; i < 2; i++)
-		pixman_region32_union(&go->buffer_damage[i],
-				      &go->buffer_damage[i],
-				      output_damage);
 
-	pixman_region32_union(output_damage, output_damage,
-			      &go->buffer_damage[go->current_buffer]);
+	if (fullscreen_clear) {
+		gal2d_clear(output);
+		pixman_region32_union_rect(output_damage, output_damage,
+				   0, 0, output->width,
+				   output->height);
+	} else {
+		for (i = 0; i < 2; i++)
+			pixman_region32_union(&go->buffer_damage[i],
+					&go->buffer_damage[i],
+					output_damage);
 
+		pixman_region32_union(output_damage, output_damage,
+				&go->buffer_damage[go->current_buffer]);
+	}
 	repaint_views(output, output_damage);
 
 	pixman_region32_copy(&output->previous_damage, output_damage);
