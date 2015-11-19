@@ -849,8 +849,6 @@ commit_screen_list(struct ivi_layout *layout)
 			wl_list_for_each(ivilayer, &iviscrn->pending.layer_list,
 					 pending.link) {
 				wl_list_remove(&ivilayer->order.link);
-				remove_orderlayer_from_screen(ivilayer);
-
 				wl_list_insert(&iviscrn->order.layer_list,
 					       &ivilayer->order.link);
 				ivilayer->on_screen = iviscrn;
