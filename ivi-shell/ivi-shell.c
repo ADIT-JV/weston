@@ -417,43 +417,6 @@ ivi_shell_setting_create(struct ivi_shell_setting *dest,
 	return result;
 }
 
-static void
-handle_seat_destroy(struct wl_listener *listener, void *data)
-{
-	struct weston_seat *seat = data;
-
-	if (seat->keyboard_state) {
-		weston_keyboard_end_grab(seat->keyboard_state);
-	}
-}
-
-static void
-handle_seat_updated_caps(struct wl_listener *listener, void *data)
-{
-	struct weston_seat *seat = data;
-
-	if ((seat->keyboard_device_count > 0) && seat->keyboard_state) {
-		weston_keyboard_start_grab(seat->keyboard_state,
-					   &(get_instance()->keyboard_grab));
-	}
-}
-
-static void
-handle_seat_created(struct wl_listener *listener, void *data)
-{
-	struct weston_seat *seat = data;
-	struct ivi_shell *shell =
-		container_of(listener, struct ivi_shell, seat_created_listener);
-
-	shell->seat_destroy_listener.notify = handle_seat_destroy;
-	wl_signal_add(&seat->destroy_signal, &shell->seat_destroy_listener);
-
-	shell->seat_updated_caps_listener.notify = handle_seat_updated_caps;
-	wl_signal_add(&seat->updated_caps_signal, &shell->seat_updated_caps_listener);
-
-	handle_seat_updated_caps(&shell->seat_updated_caps_listener, seat);
-}
-
 /*
  * Initialization of ivi-shell.
  */
@@ -463,7 +426,6 @@ module_init(struct weston_compositor *compositor,
 {
 	struct ivi_shell *shell;
 	struct ivi_shell_setting setting = { };
-	struct weston_seat *seat;
 	int retval = -1;
 
 	shell = zalloc(sizeof *shell);
@@ -477,14 +439,6 @@ module_init(struct weston_compositor *compositor,
 
 	shell->destroy_listener.notify = shell_destroy;
 	wl_signal_add(&compositor->destroy_signal, &shell->destroy_listener);
-
-	shell->seat_created_listener.notify = handle_seat_created;
-	wl_signal_add(&compositor->seat_created_signal, &shell->seat_created_listener);
-
-	wl_list_for_each(seat, &compositor->seat_list, link) {
-		handle_seat_created(&shell->seat_created_listener, seat);
-	}
-
 
 	if (input_panel_setup(shell) < 0)
 		goto out_settings;
