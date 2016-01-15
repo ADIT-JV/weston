@@ -59,10 +59,7 @@ FILES_${PN}-examples = " \
 USERADD_PACKAGES = "${PN}"
 GROUPADD_PARAM_${PN} = "--system weston-launch"
 
-EXTRA_OEMAKE_append = " \
-  libexecdir="/usr/lib/weston" \
-"
-EXTRA_OEMAKE_append += "${@base_conditional('GPU_HW_VENDOR', 'VIVANTE', ' \
+EXTRA_OEMAKE_append = "${@base_conditional('GPU_HW_VENDOR', 'VIVANTE', ' \
   COMPOSITOR_LIBS="-lGLESv2 -lEGL -lwayland-server -lxkbcommon -lpixman-1" \
   COMPOSITOR_CFLAGS="-I ${STAGING_DIR_HOST}/usr/include/pixman-1 -DLINUX=1 -DEGL_API_FB -DEGL_API_WL" \
   FB_COMPOSITOR_CFLAGS="-DLINUX=1 -DEGL_API_FB -DEGL_API_WL -I $WLD/include" \
