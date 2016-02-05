@@ -44,6 +44,8 @@ struct gal2d_renderer_interface {
 				unsigned n_buffers);
 
 	void (*output_destroy)(struct weston_output *output);
+
+	void (*get_aligned_buf_dimensions)(int *w, int *h);
 };
 
 /* is shared between backend and renderer

@@ -1383,8 +1383,25 @@ OnError:
     return status;  
  }
 
+void static
+gal2d_get_aligned_buf_dimensions(int *w, int *h)
+{
+    gceSTATUS status;
+    gctUINT xalignment = 0;
+    int width = *w;
+
+    status =  gcoSURF_GetAlignment(gcvSURF_BITMAP,gcvSURF_A8R8G8B8, NULL, &xalignment, NULL);
+    if (gcvSTATUS_OK != status)
+    {
+        weston_log("Error in %s by gcoSURF_GetAlignment, status: %d\n", __func__,status);
+        return;
+    }
+    *w = gcmALIGN_NP2(width,xalignment);
+}
+
  WL_EXPORT struct gal2d_renderer_interface gal2d_renderer_interface = {
 	.create = gal2d_renderer_create,
 	.output_create = gal2d_renderer_output_create,
 	.output_destroy = gal2d_renderer_output_destroy,
+	.get_aligned_buf_dimensions = gal2d_get_aligned_buf_dimensions,
 };

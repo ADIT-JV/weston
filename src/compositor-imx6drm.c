@@ -1375,6 +1375,9 @@ drm_output_init_gal2d(struct drm_output *output, struct drm_backend *b)
 	int h = output->base.current_mode->height;
 	unsigned int i;
 
+	/*get aligned width of the buffer as required by the gpu hardware*/
+	gal2d_renderer->get_aligned_buf_dimensions( &w, &h);
+
 	for (i = 0; i < ARRAY_LENGTH(output->dumb); i++) {
 		output->dumb[i] = drm_fb_create_dumb(b, w, h);
 		if (!output->dumb[i])
@@ -1387,7 +1390,7 @@ drm_output_init_gal2d(struct drm_output *output, struct drm_backend *b)
 	/*set the FB_MULTI_BUFFER to 0
 	 *gpu driver will not access the framebuffer
 	*/
-	setenv("FB_MULTI_BUFFER", 0, 1);
+	setenv("FB_MULTI_BUFFER", "0", 1);
 	output->display = fbGetDisplay(b->compositor->wl_display);
 	if (output->display == NULL) {
 		fprintf(stderr, "failed to get display\n");
