@@ -1,0 +1,53 @@
+Testing Transmitter with ivi-shell
+
+The current implementation of Transmitter is a stub which interfaces to
+other Weston parts appropriately, but all networking is just a mockup.
+
+
+Configure Weston with --enable-surface-remoting to build the Transmitter
+plugin.
+
+In weston.ini, add 'transmitter.so' to the 'modules' key under '[core]', and
+make sure the 'shell' is 'ivi-shell.so'. Follow the ivi-shell example
+weston.ini for everything else.
+
+When you start weston, the log should contain something like this:
+
+[13:13:54.799] Loading module '/home/pq/local/lib/weston/ivi-shell.so'
+[13:13:54.799] launching '/home/pq/local/libexec/weston-keyboard'
+[13:13:54.799] Loading module '/home/pq/local/lib/weston/hmi-controller.so'
+[13:13:54.799] Loading module '/home/pq/local/lib/weston/transmitter.so'
+[13:13:54.799] Registered plugin API 'transmitter_v1' of size 48
+[13:13:54.799] Registered plugin API 'transmitter_ivi_v1' of size 16
+[13:13:54.799] Transmitter initialized.
+[13:13:54.799] ivi-layout: Transmitter enabled.
+[13:13:54.799] launching '/home/pq/build/weston/weston-ivi-shell-user-interface'
+[13:13:54.799] hmi-controller: Transmitter enabled.
+[13:13:54.799] Transmitter connecting to 0.0.0.0:66...
+[13:13:55.800] Transmitter connected to 0.0.0.0:66.
+[13:13:55.800] hmi-controller: connection status 0
+[13:13:55.800] Transmitter created output 'transmitter-0.0.0.0:66-1': Weston-Transmitter, transmitter-0.0.0.0:66-1, 0
+[13:13:55.800] Transmitter created seat=0x1c37bd0 'transmitter-0.0.0.0:66-default'
+[13:13:55.800] Transmitter created pointer=0x1c38430 for seat 0x1c37bd0
+[13:13:55.800] transmitter_start_repaint_loop(transmitter-0.0.0.0:66-1)
+
+
+If you have edited a client to have ivi-id >= 0xfaa01000, when you start that
+client it should be "remoted" automatically and not appear on screen.
+
+You can also manually start remoting:
+- Start an IVI application.
+- Move pointer onto the application window.
+- Press Mod+Shift+space, and then 'k'.
+- The window should disappear.
+
+Weston log will indicate remoting has started:
+
+[13:18:24.572] HMI transmitting surface 0x1c3dad0, ivi-id 0x9ff6
+[13:18:24.572] Transmitter: update surface 0x1c3dad0 (0, 0), 0 cb
+[13:18:24.572] transmitter_surface_set_ivi_id(0x1c3dad0, 0x9ff6)
+[13:18:24.972] Transmitter: surface 0x1c3dad0 entered output transmitter-0.0.0.0:66-1
+
+Once remoting has started, the mockup code will generate fake pointer input for
+the window. This can be seen with e.g. weston-eventdemo, or running an
+application with WAYLAND_DEBUG=client.

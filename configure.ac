@@ -538,6 +538,14 @@ AS_IF([test "x$have_systemd_login_209" = "xyes"],
       [AC_DEFINE([HAVE_SYSTEMD_LOGIN_209], [1], [Have systemd-login >= 209])])
 
 
+# surface remoting
+AC_ARG_ENABLE(surface-remoting,
+              AS_HELP_STRING([--enable-surface-remoting],
+                             [support for surface remoting over network]),,
+	      enable_surface_remoting=no)
+AM_CONDITIONAL(ENABLE_SURFACE_REMOTING, test "x$enable_surface_remoting" = "xyes")
+
+
 # Note that other features might want libxml2, or this feature might use
 # alternative xml libraries at some point. Therefore the feature and
 # pre-requisite concepts are split.
@@ -724,4 +732,5 @@ AC_MSG_RESULT([
 	libwebp Support			${have_webp}
 	libunwind Support		${have_libunwind}
 	VA H.264 encoding Support	${have_libva}
+	Surface remoting support	${enable_surface_remoting}
 ])

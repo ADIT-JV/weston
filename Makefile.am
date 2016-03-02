@@ -502,6 +502,25 @@ cms_colord_la_SOURCES =				\
 endif
 endif
 
+if ENABLE_SURFACE_REMOTING
+module_LTLIBRARIES += transmitter.la
+transmitter_la_LDFLAGS = -module -avoid-version
+transmitter_la_CFLAGS =				\
+	$(COMPOSITOR_CFLAGS)			\
+	$(AM_CFLAGS)
+transmitter_la_LIBADD = $(COMPOSITOR_LIBS)
+transmitter_la_SOURCES =			\
+	transmitter/plugin.c			\
+	transmitter/plugin.h			\
+	transmitter/output.c			\
+	transmitter/input.c			\
+	transmitter/transmitter_api.h		\
+	shared/helpers.h			\
+	shared/timespec-util.h			\
+	shared/zalloc.h				\
+	src/compositor.h
+endif
+
 noinst_PROGRAMS += spring-tool
 spring_tool_CFLAGS = $(AM_CFLAGS) $(COMPOSITOR_CFLAGS)
 spring_tool_LDADD = $(COMPOSITOR_LIBS) -lm
