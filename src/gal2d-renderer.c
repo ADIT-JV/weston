@@ -635,7 +635,85 @@ gal2d_renderer_read_pixels(struct weston_output *output,
 			       uint32_t x, uint32_t y,
 			       uint32_t width, uint32_t height)
 {
-	return 0;
+	gceSTATUS status = gcvSTATUS_OK;
+	gctUINT src_w = 0;
+	gctUINT src_h = 0;
+	char *source = NULL;
+	char *dest = (char *)pixels;
+	uint32_t row = 0;
+	uint32_t dest_row = 0;
+	uint32_t col = 0;
+	int32_t offset = 0;
+	int32_t dest_offset = 0;
+	struct gal2d_output_state *state = NULL;
+	gcsRECT srcRect = {0};
+	gcsRECT dstRect = {0};
+	gcoSURF dstsurface = NULL;
+
+	if (!output || !pixels)
+	{
+		weston_log("%s: invalid argument\n", __func__);
+		return gcvSTATUS_INVALID_ARGUMENT;
+	}
+
+	state = get_output_state(output);
+	gcmONERROR(gcoSURF_GetAlignedSize(state->renderSurf[state->activebuffer],
+					  &src_w, &src_h, gcvNULL));
+
+	if (width <= src_w)
+		width = src_w;
+
+	if (height <= src_h)
+		height = src_h;
+
+	srcRect.left = x;
+	srcRect.top = y;
+	srcRect.right = x + width;
+	srcRect.bottom = y + height;
+
+	dstRect.left = x;
+	dstRect.top = y;
+	dstRect.right = x + width;
+	dstRect.bottom = y + height;
+
+	struct gal2d_renderer *gr = get_renderer(output->compositor);
+	gcmVERIFY_OK(gcoSURF_Construct(gr->gcoHal,
+				       width, height,
+				       1,
+				       gcvSURF_BITMAP,
+				       gcvSURF_X8R8G8B8,
+				       gcvPOOL_DEFAULT,
+				       &dstsurface));
+
+	gcmONERROR(gcoSURF_FilterBlit(state->renderSurf[state->activebuffer],
+				      dstsurface, &srcRect, &dstRect, NULL));
+	/*send commands to the 2D core*/
+	gcmVERIFY_OK(gco2D_Flush(gr->gcoEngine2d));
+	/*called with TRUE wait for completion on 2D core*/
+	gcmVERIFY_OK(gcoHAL_Commit(gr->gcoHal, gcvTRUE));
+
+	gcmONERROR(gcoSURF_Lock(dstsurface, gcvNULL, (gctPOINTER *)&source));
+
+	for (row = y, dest_row = height - 1; row < height; row++, dest_row--)
+	{
+		for (col = x; col < width; col++)
+		{
+			offset = row * width + col;
+			dest_offset = dest_row * width + col;
+
+			dest[dest_offset * 4]     = source[offset * 4];
+			dest[dest_offset * 4 + 1] = source[offset * 4 + 1];
+			dest[dest_offset * 4 + 2] = source[offset * 4 + 2];
+			dest[dest_offset * 4 + 3] = source[offset * 4 + 3];
+		}
+	}
+
+	gcmONERROR(gcoSURF_Unlock(dstsurface, (gctPOINTER)source));
+	gcmVERIFY_OK(gcoSURF_Destroy(&dstsurface));
+
+OnError:
+	galONERROR(status);
+	return status;
 }
 
 static int gal2d_int_from_double(double d)
@@ -1061,6 +1139,101 @@ gal2d_get_native_surface(struct weston_surface *surface)
 }
 
 static void
+gal2d_surface_get_content_size(struct weston_surface *surface,
+			       int *width, int *height)
+{
+	struct gal2d_surface_state *state = get_surface_state(surface);
+	struct weston_buffer *buffer = state->buffer_ref.buffer;
+
+	if (buffer)
+	{
+		*width = buffer->width;
+		*height = buffer->height;
+	}
+	else
+	{
+		*width = 0;
+		*height = 0;
+	}
+}
+
+static int
+gal2d_surface_copy_content(struct weston_surface *surface,
+			   void *target, size_t size,
+			   int src_x, int src_y,
+			   int width, int height)
+{
+	gceSTATUS status = gcvSTATUS_OK;
+	gcoSURF native_surface = gal2d_get_native_surface(surface);
+	struct gal2d_surface_state *state = get_surface_state(surface);
+	struct weston_buffer *buffer = state->buffer_ref.buffer;
+	char *source = NULL;
+	char *dest = (char *)target;
+	int32_t row = 0;
+	int32_t col = 0;
+	int32_t offset = 0;
+	int32_t src_offset = 0;
+	gcsRECT srcRect = {0};
+	gcsRECT dstRect = {0};
+	gcoSURF dstsurface = NULL;
+
+	if (!native_surface || !target)
+		return gcvSTATUS_INVALID_ARGUMENT;
+
+	struct gal2d_renderer *gr = surface->renderer_state;
+	gcmVERIFY_OK(gcoSURF_Construct(gr->gcoHal,
+				       width, height,
+				       1,
+				       gcvSURF_BITMAP,
+				       gcvSURF_X8R8G8B8,
+				       gcvPOOL_DEFAULT,
+				       &dstsurface));
+
+	gctINT dststride = 0;
+	gctUINT dstwidth, dstheight;
+	gcoSURF_GetAlignedSize(dstsurface, &dstwidth, &dstheight, &dststride);
+
+	srcRect.left = src_x;
+	srcRect.top = src_y;
+	srcRect.right = src_x + width;
+	srcRect.bottom = src_y + height;
+
+	dstRect.left = src_x;
+	dstRect.top = src_y;
+	dstRect.right = src_x + width;
+	dstRect.bottom = src_y + height;
+
+	gcmONERROR(gcoSURF_FilterBlit(native_surface, dstsurface, &srcRect, &dstRect, NULL));
+	/*send commands to the 2D core*/
+	gcmVERIFY_OK(gco2D_Flush(gr->gcoEngine2d));
+	/*called with TRUE wait for completion on 2D core*/
+	gcmVERIFY_OK(gcoHAL_Commit(gr->gcoHal, gcvTRUE));
+
+	gcmONERROR(gcoSURF_Lock(dstsurface, gcvNULL, (gctPOINTER *)&source));
+
+	for (row = src_y; row < height; row++)
+	{
+		for (col = src_x; col < width; col++)
+		{
+			offset = row * width + col;
+			src_offset = row * dstwidth + col;
+
+			dest[offset * 4]     = source[src_offset * 4 + 2];
+			dest[offset * 4 + 1] = source[src_offset * 4 + 1];
+			dest[offset * 4 + 2] = source[src_offset * 4];
+			dest[offset * 4 + 3] = source[src_offset * 4 + 3];
+		}
+	}
+
+	gcmONERROR(gcoSURF_Unlock(dstsurface, (gctPOINTER)source));
+	gcmVERIFY_OK(gcoSURF_Destroy(&dstsurface));
+
+OnError:
+	galONERROR(status);
+	return status;
+}
+
+static void
 surface_state_destroy(struct gal2d_surface_state *gs, struct gal2d_renderer *gr)
 {
 	if(gs->gco_Surface)
@@ -1219,6 +1392,8 @@ gal2d_renderer_create(struct weston_compositor *ec, int use_drm)
 	gr->base.surface_set_color = gal2d_renderer_surface_set_color;
 	gr->base.destroy = gal2d_renderer_destroy;
 	gr->base.get_native_surface = gal2d_get_native_surface;
+	gr->base.surface_get_content_size = gal2d_surface_get_content_size;
+	gr->base.surface_copy_content = gal2d_surface_copy_content;
 	gr->localInfo = NULL;
     /* Construct the gcoOS object. */
 	gcmONERROR(gcoOS_Construct(gcvNULL, &gr->gcos));
