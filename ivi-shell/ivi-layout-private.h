@@ -30,6 +30,7 @@
 
 #include "compositor.h"
 #include "ivi-layout-export.h"
+#include "transmitter/transmitter_api.h"
 
 struct ivi_layout_view {
 	struct wl_list link;	/* ivi_layout::view_list */
@@ -60,6 +61,14 @@ struct ivi_layout_surface {
 	} pending;
 
 	struct wl_list view_list;	/* ivi_layout_view::surf_link */
+
+	struct {
+		struct wl_list link;
+		struct wl_list layer_list;
+	} order;
+
+	struct weston_transmitter_surface *txs;
+	struct wl_listener stream_listener;
 };
 
 struct ivi_layout_layer {
@@ -115,6 +124,11 @@ struct ivi_layout {
 	struct wl_listener output_destroyed;
 	struct wl_listener output_resized;
 	struct wl_listener output_moved;
+
+	const struct weston_transmitter_api *txr_api;
+	const struct weston_transmitter_ivi_api *txr_ivi_api;
+	struct weston_transmitter *transmitter;
+	struct wl_signal stream_status_signal;
 };
 
 struct ivi_layout *get_instance(void);

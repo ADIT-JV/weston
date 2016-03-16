@@ -67,6 +67,7 @@
 #include "ivi-layout-export.h"
 #include "ivi-layout-private.h"
 #include "ivi-layout-shell.h"
+#include "transmitter/transmitter_api.h"
 
 #include "shared/helpers.h"
 #include "shared/os-compatibility.h"
@@ -98,6 +99,9 @@ struct ivi_rectangle
 	int32_t width;
 	int32_t height;
 };
+
+static void
+ivi_layout_surface_remoting_stop(struct ivi_layout_surface *ivisurf);
 
 static struct ivi_layout ivilayout = {0};
 
@@ -325,6 +329,13 @@ ivi_layout_surface_destroy(struct ivi_layout_surface *ivisurf)
 	wl_signal_emit(&layout->surface_notification.removed, ivisurf);
 
 	ivi_layout_remove_all_surface_transitions(ivisurf);
+
+	if (ivisurf->txs) {
+		weston_log("ivi-layout warning: controller did not stop "
+			   "remoting of weston_surface %p on removal.\n",
+			   ivisurf->surface);
+		ivi_layout_surface_remoting_stop(ivisurf);
+	}
 
 	free(ivisurf);
 }
@@ -2051,6 +2062,100 @@ ivi_layout_surface_dump(struct weston_surface *surface,
 	return result == 0 ? IVI_SUCCEEDED : IVI_FAILED;
 }
 
+static void
+ivi_layout_surface_remoting_stop(struct ivi_layout_surface *ivisurf)
+{
+	const struct weston_transmitter_api *txr_api = ivisurf->layout->txr_api;
+
+	if (!ivisurf->txs)
+		return;
+
+	txr_api->surface_destroy(ivisurf->txs);
+	ivisurf->txs = NULL;
+}
+
+static void
+surface_relay_configure(void *data, int32_t width, int32_t height)
+{
+	struct ivi_layout_surface *ivisurf = data;
+
+	shell_surface_send_configure(ivisurf->surface, width, height);
+}
+
+static void
+surface_stream_status_handler(struct wl_listener *listener, void *data)
+{
+	struct ivi_layout_surface *ivisurf =
+		wl_container_of(listener, ivisurf, stream_listener);
+	struct weston_transmitter_surface *txs = data;
+
+	assert(txs == ivisurf->txs);
+	wl_signal_emit(&ivisurf->layout->stream_status_signal, ivisurf);
+}
+
+static int
+ivi_layout_surface_remoting_start(struct ivi_layout_surface *ivisurf,
+				  struct weston_transmitter_remote *remote)
+{
+	struct ivi_layout *il = ivisurf->layout;
+	struct weston_transmitter *txr = il->transmitter;
+
+	if (!wl_list_empty(&ivisurf->order.link)) {
+		weston_log("Error in %s: surface id %#x is on a layer.\n",
+			   __func__, ivisurf->id_surface);
+		return -1;
+	}
+
+	if (!txr)
+		return -3;
+
+	if (ivisurf->txs)
+		return -2;
+
+	ivisurf->stream_listener.notify = surface_stream_status_handler;
+	ivisurf->txs =
+		il->txr_api->surface_push_to_remote(ivisurf->surface, remote,
+						    &ivisurf->stream_listener);
+	if (!ivisurf->txs) {
+		weston_log("Transmitter binding surface %p failed.\n",
+			   ivisurf->surface);
+
+		return -1;
+	}
+
+	il->txr_ivi_api->set_resize_callback(ivisurf->txs,
+					     surface_relay_configure,
+					     ivisurf);
+	il->txr_ivi_api->set_ivi_id(ivisurf->txs, ivisurf->id_surface);
+
+	return 0;
+}
+
+static void
+ivi_layout_surface_remoting_add_stream_listener(struct wl_listener *listener)
+{
+	struct ivi_layout *layout = get_instance();
+
+	wl_signal_add(&layout->stream_status_signal, listener);
+}
+
+static enum weston_transmitter_stream_status
+ivi_layout_surface_stream_get_status(struct ivi_layout_surface *ivisurf)
+{
+	const struct weston_transmitter_api *txr_api = ivisurf->layout->txr_api;
+
+	if (!ivisurf->txs)
+		return WESTON_TRANSMITTER_STREAM_FAILED;
+
+	return txr_api->surface_get_stream_status(ivisurf->txs);
+}
+
+static bool
+ivi_layout_is_surface_remoted(struct ivi_layout_surface *ivisurf)
+{
+	return !!ivisurf->txs;
+}
+
 /**
  * methods of interaction between ivi-shell with ivi-layout
  */
@@ -2064,6 +2169,29 @@ ivi_layout_surface_configure(struct ivi_layout_surface *ivisurf,
 	/* emit callback which is set by ivi-layout api user */
 	wl_signal_emit(&layout->surface_notification.configure_changed,
 		       ivisurf);
+}
+
+/** Client updated the surface contents.
+ *
+ * Unlike ivi_layout_surface_configure(), this function is called always when
+ * a client updates surface content. This is called after
+ * ivi_layout_surface_configure().
+ *
+ * \param ivisurf The ivi_layout_surface.
+ * \param sx The x delta given in wl_surface.attach request.
+ * \param sy The y delta given in wl_surface.attach request.
+ *
+ * \todo This function will not be necessary after ivi_layout_surface_configure
+ * will properly handle a) zero surface dimensions, and b) dx,dy from
+ * wl_surface.attach.
+ */
+void
+ivi_layout_surface_update(struct ivi_layout_surface *ivisurf, int32_t sx, int32_t sy)
+{
+	struct ivi_layout *il = ivisurf->layout;
+
+	if (ivisurf->txs)
+		il->txr_api->surface_configure(ivisurf->txs, sx, sy);
 }
 
 struct ivi_layout_surface*
@@ -2114,10 +2242,33 @@ ivi_layout_surface_create(struct weston_surface *wl_surface,
 	return ivisurf;
 }
 
+static void
+ivi_layout_post_init(void *data)
+{
+	struct ivi_layout *il = data;
+
+	il->transmitter = NULL;
+	il->txr_api = weston_get_transmitter_api(il->compositor);
+	il->txr_ivi_api = weston_get_transmitter_ivi_api(il->compositor);
+	if (il->txr_api && il->txr_ivi_api)
+		il->transmitter = il->txr_api->transmitter_get(il->compositor);
+
+	if (!il->transmitter) {
+		weston_log("ivi-layout: Transmitter disabled (txr: %s, ivi: %s)\n",
+			   il->txr_api ? "yes" : "no",
+			   il->txr_ivi_api ? "yes" : "no");
+		il->txr_ivi_api = NULL;
+		il->txr_api = NULL;
+	} else {
+		weston_log("ivi-layout: Transmitter enabled.\n");
+	}
+}
+
 void
 ivi_layout_init_with_compositor(struct weston_compositor *ec)
 {
 	struct ivi_layout *layout = get_instance();
+	struct wl_event_loop *loop;
 
 	layout->compositor = ec;
 
@@ -2132,6 +2283,8 @@ ivi_layout_init_with_compositor(struct weston_compositor *ec)
 	wl_signal_init(&layout->surface_notification.created);
 	wl_signal_init(&layout->surface_notification.removed);
 	wl_signal_init(&layout->surface_notification.configure_changed);
+
+	wl_signal_init(&layout->stream_status_signal);
 
 	/* Add layout_layer at the last of weston_compositor.layer_list */
 	weston_layer_init(&layout->layout_layer, ec);
@@ -2154,6 +2307,9 @@ ivi_layout_init_with_compositor(struct weston_compositor *ec)
 
 	layout->transitions = ivi_layout_transition_set_create(ec);
 	wl_list_init(&layout->pending_transition_list);
+
+	loop = wl_display_get_event_loop(ec->wl_display);
+	wl_event_loop_add_idle(loop, ivi_layout_post_init, layout);
 }
 
 static struct ivi_layout_interface ivi_layout_interface = {
@@ -2227,6 +2383,15 @@ static struct ivi_layout_interface ivi_layout_interface = {
 	 */
 	.surface_get_size		= ivi_layout_surface_get_size,
 	.surface_dump			= ivi_layout_surface_dump,
+
+	/**
+	 * Remoting interface
+	 */
+	.surface_remoting_start		= ivi_layout_surface_remoting_start,
+	.surface_remoting_add_stream_listener = ivi_layout_surface_remoting_add_stream_listener,
+	.surface_stream_get_status	= ivi_layout_surface_stream_get_status,
+	.surface_remoting_stop		= ivi_layout_surface_remoting_stop,
+	.is_surface_remoted		= ivi_layout_is_surface_remoted,
 };
 
 int

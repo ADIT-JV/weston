@@ -66,6 +66,7 @@ extern "C" {
 struct ivi_layout_layer;
 struct ivi_layout_screen;
 struct ivi_layout_surface;
+struct weston_transmitter_remote;
 
 struct ivi_layout_surface_properties
 {
@@ -588,6 +589,59 @@ struct ivi_layout_interface {
 	 */
 	int32_t (*screen_remove_layer)(struct weston_output *output,
 				       struct ivi_layout_layer *removelayer);
+
+	/**
+	 * Put a surface to a remote display.
+	 *
+	 * The surface must not be on any layer in the local display.
+	 *
+	 * \param ivisurf The surface to push to the remote server.
+	 * \param remote The remote connection handle.
+	 * \return 0 on success, negative on error.
+	 *
+	 * The caller must look up Transmitter in the plugin registry and
+	 * create the connection first. The connection must have been
+	 * signalled ready. See transmitter_api.h.
+	 *
+	 * As Transmitter requires all weston_transmitter_surfaces to be
+	 * destroyed before destroying the weston_transmitter_remote,
+	 * surface_remoting_stop() must be called for every surface on the
+	 * remote before destroying the weston_transmitter_remote.
+	 */
+	int (*surface_remoting_start)(struct ivi_layout_surface *ivisurf,
+				      struct weston_transmitter_remote *remote);
+
+	/**
+	 * Add a listener for remoted surface streams' status changes.
+	 *
+	 * The callback data is struct ivi_layout_surface on which the change
+	 * happened.
+	 */
+	void (*surface_remoting_add_stream_listener)(struct wl_listener *listener);
+
+	/**
+	 * Get the surface content stream status, see Transmitter documentation.
+	 *
+	 * Returns WESTON_TRANSMITTER_STREAM_FAILED if not remoted.
+	 */
+	enum weston_transmitter_stream_status
+		(*surface_stream_get_status)(struct ivi_layout_surface *ivisurf);
+
+	/**
+	 * Remove surface from the remote display it was on.
+	 *
+	 * Stopping the remoting of a surface does not make the surface
+	 * appear on the local display.
+	 */
+	void (*surface_remoting_stop)(struct ivi_layout_surface *ivisurf);
+
+	/**
+	 * Is surface being remoted currently?
+	 *
+	 * @todo Should this return weston_transmitter_remote instead and
+	 * NULL for not remoted?
+	 */
+	bool (*is_surface_remoted)(struct ivi_layout_surface *ivisurf);
 };
 
 #ifdef __cplusplus
