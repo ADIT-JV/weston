@@ -1163,6 +1163,9 @@ struct weston_surface {
 	 */
 	struct weston_output *output;
 
+	/** See weston_surface_force_output() */
+	struct weston_output *forced_output;
+
 	/*
 	 * A more complete representation of all outputs this surface is
 	 * displayed on.
@@ -1561,6 +1564,10 @@ weston_view_schedule_repaint(struct weston_view *view);
 
 bool
 weston_surface_is_mapped(struct weston_surface *surface);
+
+void
+weston_surface_force_output(struct weston_surface *surface,
+			    struct weston_output *output);
 
 void
 weston_surface_set_size(struct weston_surface *surface,
