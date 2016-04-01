@@ -1917,6 +1917,17 @@ weston_output_disable(struct weston_output *output);
 void
 weston_pending_output_coldplug(struct weston_compositor *compositor);
 
+void
+weston_presentation_feedback_discard_list(struct wl_list *list);
+
+void
+weston_presentation_feedback_present_list(struct wl_list *list,
+					  struct weston_output *output,
+					  uint32_t refresh_nsec,
+					  const struct timespec *ts,
+					  uint64_t seq,
+					  uint32_t flags);
+
 #ifdef  __cplusplus
 }
 #endif
