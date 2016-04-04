@@ -1908,6 +1908,8 @@ weston_surface_destroy(struct weston_surface *surface)
 			      link)
 		weston_pointer_constraint_destroy(constraint);
 
+	assert(wl_list_length(&surface->commit_signal.listener_list) == 0);
+
 	free(surface);
 }
 

@@ -1140,6 +1140,7 @@ struct weston_pointer_constraint {
 struct weston_surface {
 	struct wl_resource *resource;
 	struct wl_signal destroy_signal; /* callback argument: this surface */
+	struct wl_signal apply_state_signal; /* callback arg: NULL */
 	struct weston_compositor *compositor;
 	struct wl_signal commit_signal;
 
