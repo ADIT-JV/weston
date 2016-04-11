@@ -114,7 +114,7 @@ weston_pointer_client_is_empty(struct weston_pointer_client *pointer_client)
 		wl_list_empty(&pointer_client->relative_pointer_resources));
 }
 
-static struct weston_pointer_client *
+WL_EXPORT struct weston_pointer_client *
 weston_pointer_get_pointer_client(struct weston_pointer *pointer,
 				  struct wl_client *client)
 {
@@ -2417,6 +2417,8 @@ seat_get_pointer(struct wl_client *client, struct wl_resource *resource,
 				      sx, sy);
 		pointer_send_frame(cr);
 	}
+
+	wl_signal_emit(&seat->get_pointer_signal, cr);
 }
 
 static void
@@ -3070,6 +3072,7 @@ weston_seat_init(struct weston_seat *seat, struct weston_compositor *ec,
 	wl_list_init(&seat->drag_resource_list);
 	wl_signal_init(&seat->destroy_signal);
 	wl_signal_init(&seat->updated_caps_signal);
+	wl_signal_init(&seat->get_pointer_signal);
 
 	seat->global = wl_global_create(ec->wl_display, &wl_seat_interface, 5,
 					seat, bind_seat);

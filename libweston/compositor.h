@@ -445,6 +445,9 @@ weston_pointer_move(struct weston_pointer *pointer,
 void
 weston_pointer_set_default_grab(struct weston_pointer *pointer,
 		const struct weston_pointer_grab_interface *interface);
+struct weston_pointer_client *
+weston_pointer_get_pointer_client(struct weston_pointer *pointer,
+				  struct wl_client *client);
 
 void
 weston_pointer_constraint_destroy(struct weston_pointer_constraint *constraint);
@@ -618,6 +621,9 @@ struct weston_seat {
 
 	struct input_method *input_method;
 	char *seat_name;
+
+	/* for alternative seat implementations */
+	struct wl_signal get_pointer_signal; /* data: the new wl_resource */
 };
 
 enum {
