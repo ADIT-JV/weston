@@ -1021,7 +1021,7 @@ gal2d_renderer_repaint_output(struct weston_output *output,
 	if (fullscreen_clear) {
 		gal2d_clear(output);
 		pixman_region32_union_rect(output_damage, output_damage,
-				   0, 0, output->width,
+				   output->x, output->y, output->width,
 				   output->height);
 	} else {
 		for (i = 0; i < 2; i++)
