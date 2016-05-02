@@ -42,14 +42,14 @@
 
 struct gal2d_output_state {
 	
-	int current_buffer;
-	pixman_region32_t buffer_damage[2];
-	NativeDisplayType display;
+    int current_buffer;
+    pixman_region32_t *buffer_damage;
+    NativeDisplayType display;
     gcoSURF* renderSurf;
-	gctUINT32 nNumBuffers;
-	int activebuffer;
-	gcoSURF offscreenSurface;
-	gceSURF_FORMAT format;
+    gctUINT32 nNumBuffers;
+    int activebuffer;
+    gcoSURF offscreenSurface;
+    gceSURF_FORMAT format;
     pthread_mutex_t workerMutex;
     pthread_t workerId;
     gctUINT32 exitWorker;
@@ -59,15 +59,13 @@ struct gal2d_output_state {
     int directBlit;
     gctINT width;
     gctINT height;
-
-	gctUINT num_drm_buf;
-	struct navite_drm_buf_info *drm_buf[2];
+    struct navite_drm_buf_info **drm_buf;
 };
 
 struct gal2d_surface_state {
-	float color[4];
-	struct weston_buffer_reference buffer_ref;
-	int pitch; /* in pixels */
+    float color[4];
+    struct weston_buffer_reference buffer_ref;
+    int pitch; /* in pixels */
     pixman_region32_t texture_damage;
     gcoSURF gco_Surface;
 
@@ -77,13 +75,13 @@ struct gal2d_surface_state {
 };
 
 struct gal2d_renderer {
-	struct weston_renderer base;
+    struct weston_renderer base;
     struct wl_signal destroy_signal;
     gcoOS gcos;
-	gcoHAL gcoHal;
-	gco2D gcoEngine2d;
-	gctPOINTER  localInfo;
-	gctBOOL use_drm;
+    gcoHAL gcoHal;
+    gco2D gcoEngine2d;
+    gctPOINTER  localInfo;
+    gctBOOL use_drm;
 };
 
 static int
@@ -92,15 +90,15 @@ gal2d_renderer_create_surface(struct weston_surface *surface);
 static inline struct gal2d_surface_state *
 get_surface_state(struct weston_surface *surface)
 {
-	if (!surface->renderer_state)
-		gal2d_renderer_create_surface(surface);
-	return (struct gal2d_surface_state *)surface->renderer_state;
+    if (!surface->renderer_state)
+        gal2d_renderer_create_surface(surface);
+    return (struct gal2d_surface_state *)surface->renderer_state;
 }
 
 static inline struct gal2d_renderer *
 get_renderer(struct weston_compositor *ec)
 {
-	return (struct gal2d_renderer *)ec->renderer;
+    return (struct gal2d_renderer *)ec->renderer;
 }
 
 
@@ -1024,7 +1022,7 @@ gal2d_renderer_repaint_output(struct weston_output *output,
 				   output->x, output->y, output->width,
 				   output->height);
 	} else {
-		for (i = 0; i < 2; i++)
+		for (i = 0; i < go->nNumBuffers; i++)
 			pixman_region32_union(&go->buffer_damage[i],
 					&go->buffer_damage[i],
 					output_damage);
@@ -1039,7 +1037,7 @@ gal2d_renderer_repaint_output(struct weston_output *output,
     
     update_surface(output);
 
-	go->current_buffer ^= 1;
+	go->current_buffer = (go->current_buffer + 1) % go->nNumBuffers;
 }
 
 static void
@@ -1336,15 +1334,22 @@ gal2d_renderer_output_destroy(struct weston_output *output)
     struct gal2d_output_state *go = get_output_state(output);
     gctUINT32 i;
 
-    for (i = 0; i < 2; i++)
+    for (i = 0; i < go->current_buffer; i++)
     {
         pixman_region32_fini(&go->buffer_damage[i]);
     }
+    free(go->buffer_damage);
+
+    if (gr->use_drm)
+    {
+       free(go->drm_buf);
+    }
+
     if(go->nNumBuffers <= 1 )
-	{
-		if(go->offscreenSurface)
-			gcmVERIFY_OK(gcoSURF_Destroy(go->offscreenSurface));
-	}
+    {
+        if(go->offscreenSurface)
+            gcmVERIFY_OK(gcoSURF_Destroy(go->offscreenSurface));
+    }
     else if(!gr->use_drm)
     {
         gcoOS_Signal(gcvNULL,go->signal, gcvTRUE);
@@ -1354,14 +1359,14 @@ gal2d_renderer_output_destroy(struct weston_output *output)
         pthread_join(go->workerId, NULL);
     }
     
-	for(i=0; i < go->nNumBuffers; i++)
-	{
-		gcmVERIFY_OK(gcoSURF_Destroy(go->renderSurf[i]));
-	}
-	free(go->renderSurf);
-	go->renderSurf = gcvNULL;
+    for(i=0; i < go->nNumBuffers; i++)
+    {
+        gcmVERIFY_OK(gcoSURF_Destroy(go->renderSurf[i]));
+    }
+    free(go->renderSurf);
+    go->renderSurf = gcvNULL;
 
-	free(go);
+    free(go);
 }
 
 static void
@@ -1430,11 +1435,15 @@ gal2d_renderer_output_create(struct weston_output *output, NativeDisplayType dis
     if (!go)
         return -1;
 
+    go->buffer_damage = calloc(1, sizeof(pixman_region32_t) * n_buffer);
+    if (!go->buffer_damage)
+        return -1;
+
     output->renderer_state = go;
     go->display = display;
 
-	if (!gr->localInfo)
-		gcmONERROR(gcoOS_InitLocalDisplayInfo(go->display, &gr->localInfo));
+    if (!gr->localInfo)
+        gcmONERROR(gcoOS_InitLocalDisplayInfo(go->display, &gr->localInfo));
 
     if (gr->use_drm)
     {
@@ -1443,12 +1452,17 @@ gal2d_renderer_output_create(struct weston_output *output, NativeDisplayType dis
             weston_log("provided drm buffer broken\n");
             return -1;
         }
-        memcpy(go->drm_buf,buffers,sizeof(struct navite_drm_buf_info*)*n_buffer);
+        go->drm_buf = calloc(1, sizeof(struct navite_drm_buf_info*) * n_buffer);
+        if (!go->drm_buf)
+        {
+            weston_log("Failed to allocate memory for drm buffer structure pointer\n");
+            return -1;
+        }
+        memcpy(go->drm_buf, buffers, sizeof(struct navite_drm_buf_info*) * n_buffer);
 
-        go->num_drm_buf = n_buffer;
 
         /*fill the info struct from the buffer*/
-        info.multiBuffer = go->num_drm_buf;
+        info.multiBuffer = n_buffer;
         info.stride = go->drm_buf[0]->stride;
         info.height = go->drm_buf[0]->h;
         info.width = go->drm_buf[0]->w;
@@ -1478,16 +1492,16 @@ gal2d_renderer_output_create(struct weston_output *output, NativeDisplayType dis
     gcmONERROR(gal2d_getSurfaceFormat(info, &go->format));
     go->activebuffer = 0;
 
-	go->renderSurf = malloc(sizeof(gcoSURF) * go->nNumBuffers);
-	if (gr->use_drm)
-	{
-		go->width = info.width;
-		go->height = info.height;
-	}
-	else
-	{
-		gcoOS_GetDisplayVirtual(go->display, &go->width, &go->height);
-	}
+    go->renderSurf = malloc(sizeof(gcoSURF) * go->nNumBuffers);
+    if (gr->use_drm)
+    {
+        go->width = info.width;
+        go->height = info.height;
+    }
+    else
+    {
+        gcoOS_GetDisplayVirtual(go->display, &go->width, &go->height);
+    }
     gcoOS_SetSwapInterval(go->display, 1);
    
     /*Needed only for multi Buffer and never for if drm compositor is used */
@@ -1508,50 +1522,50 @@ gal2d_renderer_output_create(struct weston_output *output, NativeDisplayType dis
         pthread_create(&go->workerId, NULL, gal2d_output_worker, output);    
         pthread_mutex_init(&go->workerMutex, gcvNULL);
     }
-	for(i=0; i < go->nNumBuffers; i++)
-	{
-		gcmONERROR(gcoSURF_ConstructWrapper(gr->gcoHal, &go->renderSurf[i]));
+    for(i=0; i < go->nNumBuffers; i++)
+    {
+        gcmONERROR(gcoSURF_ConstructWrapper(gr->gcoHal, &go->renderSurf[i]));
 
-		gcmONERROR(gcoSURF_SetBuffer(go->renderSurf[i], gcvSURF_BITMAP, go->format, ~0U,
-				go->drm_buf[i]->map, ~0U));
-		
-		gcmONERROR(gcoSURF_SetWindow(go->renderSurf[i],
-                                   0,
-                                   0,
-                                   go->drm_buf[i]->w,
-                                   go->drm_buf[i]->h));
+        gcmONERROR(gcoSURF_SetBuffer(go->renderSurf[i], gcvSURF_BITMAP, go->format, ~0U,
+                        go->drm_buf[i]->map, ~0U));
 
-		//Clear surfaces
-		make_current(gr, go->renderSurf[i]);
-		gal2d_clear(output);
-		gal2d_flip_surface(output);
-	}
+        gcmONERROR(gcoSURF_SetWindow(go->renderSurf[i],
+                           0,
+                           0,
+                           go->drm_buf[i]->w,
+                           go->drm_buf[i]->h));
 
-	if(go->nNumBuffers <= 1)
-		go->activebuffer = 0;
-	else
-		go->activebuffer = 1;
-    
-	if(go->nNumBuffers <= 1 )
-	{
-		gcmVERIFY_OK(gcoSURF_Construct(gr->gcoHal,
-							  (gctUINT) info.width,
-							  (gctUINT) info.height,
-							  1,
-							  gcvSURF_BITMAP,
-							  go->format,
-							  gcvPOOL_DEFAULT,
-							  &go->offscreenSurface));
-		make_current(gr, go->offscreenSurface);
-		gal2d_clear(output);
-	}
+        //Clear surfaces
+        make_current(gr, go->renderSurf[i]);
+        gal2d_clear(output);
+        gal2d_flip_surface(output);
+    }
+
+    if(go->nNumBuffers <= 1)
+        go->activebuffer = 0;
+    else
+        go->activebuffer = 1;
+
+    if(go->nNumBuffers <= 1 )
+    {
+        gcmVERIFY_OK(gcoSURF_Construct(gr->gcoHal,
+                                                  (gctUINT) info.width,
+                                                  (gctUINT) info.height,
+                                                  1,
+                                                  gcvSURF_BITMAP,
+                                                  go->format,
+                                                  gcvPOOL_DEFAULT,
+                                                  &go->offscreenSurface));
+        make_current(gr, go->offscreenSurface);
+        gal2d_clear(output);
+    }
     else if(!gr->use_drm)
     {
         gcoOS_Signal(gcvNULL,go->busySignal, gcvTRUE);
     }
 
-	for (i = 0; i < 2; i++)
-		pixman_region32_init(&go->buffer_damage[i]);
+    for (i = 0; i < go->nNumBuffers; i++)
+            pixman_region32_init(&go->buffer_damage[i]);
 OnError:
     galONERROR(status);
     /* Return the status. */
