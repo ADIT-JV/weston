@@ -68,6 +68,8 @@
 #define DRM_CAP_CURSOR_HEIGHT 0x9
 #endif
 
+#define NUM_OF_DISPLAY_BUF 3
+
 static int option_current_mode = 0;
 
 enum output_config {
@@ -176,9 +178,9 @@ struct drm_output {
 	struct drm_fb *current, *next;
 	struct backlight *backlight;
 
-	struct drm_fb *dumb[2];
-	struct navite_drm_buf_info *drm_buf_info[2];
-	pixman_image_t *image[2];
+	struct drm_fb *dumb[NUM_OF_DISPLAY_BUF];
+	struct navite_drm_buf_info *drm_buf_info[NUM_OF_DISPLAY_BUF];
+	pixman_image_t *image[NUM_OF_DISPLAY_BUF];
 	int current_image;
 	pixman_region32_t previous_damage;
 
@@ -449,11 +451,18 @@ err_free:
 static void
 drm_output_release_fb(struct drm_output *output, struct drm_fb *fb)
 {
+        unsigned int dumb_fb;
 	if (!fb)
 		return;
-
+	for (dumb_fb = 0; dumb_fb < ARRAY_LENGTH(output->dumb); dumb_fb++)
+        {
+            if(output->dumb[dumb_fb] == fb)
+            {
+                    break;
+            }
+        }
 	if (fb->map &&
-            (fb != output->dumb[0] && fb != output->dumb[1])) {
+            (dumb_fb >= ARRAY_LENGTH(output->dumb))) {
 		drm_fb_destroy_dumb(fb);
 	}
 }
@@ -472,7 +481,7 @@ drm_output_render_gl(struct drm_output *output, pixman_region32_t *damage)
 	pixman_region32_copy(&output->previous_damage, &previous_damage);
 
 
-	output->current_image ^= 1;
+	output->current_image = (output->current_image + 1) % NUM_OF_DISPLAY_BUF;
 
 	output->next = output->dumb[output->current_image];
 
@@ -497,7 +506,7 @@ drm_output_render_pixman(struct drm_output *output, pixman_region32_t *damage)
 	pixman_region32_union(&total_damage, damage, &output->previous_damage);
 	pixman_region32_copy(&output->previous_damage, &previous_damage);
 
-	output->current_image ^= 1;
+        output->current_image = (output->current_image + 1) % NUM_OF_DISPLAY_BUF;
 
 	output->next = output->dumb[output->current_image];
 	pixman_renderer_output_set_buffer(&output->base,
