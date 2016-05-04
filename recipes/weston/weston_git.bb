@@ -21,6 +21,7 @@ DEPENDS = "libxkbcommon gdk-pixbuf pixman cairo glib-2.0 jpeg"
 DEPENDS += "wayland virtual/egl pango "
 DEPENDS += "libinput \
             ${@base_conditional('GPU_HW_VENDOR', 'VIVANTE', 'libdrm', '', d)} \
+            ${@base_conditional('GPU_HW_VENDOR', 'IMGTEC', 'libdrm', '', d)} \
             ${@base_conditional('GPU_HW_VENDOR', 'INTEL', 'libdrm', '', d)} "
 
 RDEPENDS_${PN} += "xkeyboard-config weston-examples"
@@ -83,10 +84,12 @@ EXTRA_OECONF_append = " \
 
 EXTRA_OECONF_append += "${@base_conditional('GPU_HW_VENDOR', 'VIVANTE', 'WESTON_NATIVE_BACKEND=imx6drm-backend.so', '', d)}"
 EXTRA_OECONF_append += "${@base_conditional('GPU_HW_VENDOR', 'INTEL', 'WESTON_NATIVE_BACKEND=drm-backend.so', '', d)}"
+EXTRA_OECONF_append += "${@base_conditional('GPU_HW_VENDOR', 'IMGTEC', 'WESTON_NATIVE_BACKEND=drm-backend.so', '', d)}"
 EXTRA_OECONF_append += "${@base_conditional('GPU_HW_VENDOR', 'LLVMPIPE', 'WESTON_NATIVE_BACKEND=fbdev-backend.so', '', d)}"
 
 PACKAGECONFIG = "${@base_conditional('GPU_HW_VENDOR', 'VIVANTE', 'imx6 gal2d systemd-notify', '', d)}"
 PACKAGECONFIG += "${@base_conditional('GPU_HW_VENDOR', 'INTEL', 'drm systemd-notify', '', d)}"
+PACKAGECONFIG += "${@base_conditional('GPU_HW_VENDOR', 'IMGTEC', 'drm systemd-notify', '', d)}"
 PACKAGECONFIG += "${@base_conditional('GPU_HW_VENDOR', 'LLVMPIPE', 'fbdev systemd-notify', '', d)}"
 
 #
