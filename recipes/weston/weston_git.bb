@@ -23,7 +23,7 @@ DEPENDS += "wayland wayland-protocols libinput virtual/egl pango wayland-native"
 RDEPENDS_${PN} += "${PN}-examples xkeyboard-config"
 RRECOMMENDS_${PN} = "liberation-fonts"
 
-PACKAGES =+ "${PN}-examples"
+PACKAGE_BEFORE_PN += "${PN}-examples"
 
 FILES_${PN} += "${systemd_unitdir} ${datadir}/wayland-sessions"
 
