@@ -1,37 +1,35 @@
 SUMMARY = "Weston, a Wayland compositor"
 DESCRIPTION = "Weston is the reference implementation of a Wayland compositor"
 HOMEPAGE = "http://wayland.freedesktop.org"
+
 LICENSE = "MIT"
-LIC_FILES_CHKSUM = "file://COPYING;md5=d79ee9e66bb0f95d3386a7acae780b70 \
-                    file://src/compositor.c;endline=23;md5=1d535fed266cf39f6d8c0647f52ac331"
+LIC_FILES_CHKSUM = " \
+  file://COPYING;md5=d79ee9e66bb0f95d3386a7acae780b70 \
+  file://src/compositor.c;endline=23;md5=1d535fed266cf39f6d8c0647f52ac331 \
+"
 
-ADIT_SOURCE_GIT = "${BUILD_DIR}/weston"
-S= "${ADIT_SOURCE_GIT}"
+# define ADIT specifics
+ADIT_SOURCE_GIT = "weston"
+ADIT_SOURCE_PATH = ""
 
-FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}:"
-
-inherit adit-gitpkgv
-
-PKGV="${@adit_get_git_pkgv(d, '${ADIT_SOURCE_GIT}' )}"
-PR = ""
+# include adit common definitions
+require recipes/adit-package/adit-package-common.inc
 
 inherit autotools pkgconfig useradd
 
-DEPENDS = "libxkbcommon gdk-pixbuf pixman cairo glib-2.0 jpeg"
-DEPENDS += "wayland virtual/egl pango "
-DEPENDS += "libinput \
-            ${@base_conditional('GPU_HW_VENDOR', 'VIVANTE', 'libdrm', '', d)} \
-            ${@base_conditional('GPU_HW_VENDOR', 'IMGTEC', 'libdrm', '', d)} \
-            ${@base_conditional('GPU_HW_VENDOR', 'INTEL', 'libdrm', '', d)} "
+DEPENDS += "libxkbcommon gdk-pixbuf pixman cairo glib-2.0 jpeg wayland virtual/egl pango libinput"
+DEPENDS += " \
+  ${@base_conditional('GPU_HW_VENDOR', 'VIVANTE', 'libdrm', '', d)} \
+  ${@base_conditional('GPU_HW_VENDOR', 'IMGTEC', 'libdrm', '', d)} \
+  ${@base_conditional('GPU_HW_VENDOR', 'INTEL', 'libdrm', '', d)} \
+"
 
-RDEPENDS_${PN} += "xkeyboard-config weston-examples"
+RDEPENDS_${PN} += "${PN}-examples xkeyboard-config"
 RRECOMMENDS_${PN} = "liberation-fonts"
 
 PACKAGES =+ "${PN}-examples"
 
-FILES_${PN} += " \
-        /lib/systemd/system/* \
-"
+FILES_${PN} += "${systemd_unitdir} ${datadir}/wayland-sessions"
 
 FILES_${PN}-examples = " \
   ${bindir}/weston-calibrator \
@@ -115,10 +113,9 @@ PACKAGECONFIG[launch] = "--enable-weston-launch,--disable-weston-launch,libpam"
 PACKAGECONFIG[systemd-notify] = "--enable-systemd-notify,--disable-systemd-notify,systemd"
 
 do_install_append() {
-        mkdir -p ${D}/lib/systemd/system
-        cp -v ${ADIT_SOURCE_GIT}/recipes/weston/files/weston.service ${D}/lib/systemd/system
-        # Weston doesn't need the .la files to load modules, so wipe them
-        rm -vf ${D}/${libdir}/weston/*.la
+  # install weston service file
+  install -d ${D}/${systemd_system_unitdir}
+  install -m 0644 ${S}/recipes/weston/files/weston.service ${D}/${systemd_system_unitdir}
 }
 
 PARALLEL_MAKE = " "
