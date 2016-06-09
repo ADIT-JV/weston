@@ -1,0 +1,9 @@
+[Unit]
+Description=Weston-IVI-Shell
+[Service]
+Type=notify
+Environment=XDG_RUNTIME_DIR=/tmp
+WatchdogSec=0
+ExecStart=/usr/bin/weston --tty=1 --modules=systemd-notify.so
+[Install]
+WantedBy=multi-user.target
