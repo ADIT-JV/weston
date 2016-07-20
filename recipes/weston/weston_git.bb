@@ -19,6 +19,7 @@ inherit autotools pkgconfig useradd
 
 DEPENDS += "libxkbcommon gdk-pixbuf pixman cairo glib-2.0 jpeg"
 DEPENDS += "wayland wayland-protocols libinput virtual/egl pango wayland-native"
+DEPENDS += "${@base_conditional('GPU_HW_VENDOR', 'IMGTEC', 'mesa', '', d)}"
 
 RDEPENDS_${PN} += "${PN}-examples xkeyboard-config"
 RRECOMMENDS_${PN} = "liberation-fonts"
