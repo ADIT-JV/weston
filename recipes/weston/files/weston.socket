@@ -1,0 +1,5 @@
+[Socket]
+ListenStream=/tmp/wayland-secondary
+
+[Install]
+WantedBy=sockets.target

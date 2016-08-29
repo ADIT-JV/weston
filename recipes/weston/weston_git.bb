@@ -107,6 +107,7 @@ do_install_append() {
         # install weston service file
         install -d ${D}/${systemd_system_unitdir}
         install -m 0644 ${S}/recipes/weston/files/weston.service ${D}/${systemd_system_unitdir}
+        install -m 0644 ${S}/recipes/weston/files/weston.socket ${D}/${systemd_system_unitdir}
 }
 
 PARALLEL_MAKE = " "
