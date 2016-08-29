@@ -1,5 +1,5 @@
 [Socket]
-ListenStream=/tmp/wayland-secondary
+ListenStream=/tmp/wayland-early
 
 [Install]
 WantedBy=sockets.target
