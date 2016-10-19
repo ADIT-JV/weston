@@ -62,7 +62,10 @@ EXTRA_OECONF_append = " \
   --disable-rpi-compositor \
 "
 
+EXTRA_OECONF_append += "${@base_conditional('MACHINE_OE_SHORT', 'sim', 'WESTON_NATIVE_BACKEND=x11-backend.so', '', d)}"
+
 PACKAGECONFIG = "kms egl clients"
+PACKAGECONFIG += "${@base_conditional('MACHINE_OE_SHORT', 'sim', 'x11', '', d)}"
 
 #
 # Compositor choices
@@ -106,8 +109,13 @@ do_install_append() {
 
         # install weston service file
         install -d ${D}/${systemd_system_unitdir}
-        install -m 0644 ${S}/recipes/weston/files/weston.service ${D}/${systemd_system_unitdir}
-        install -m 0644 ${S}/recipes/weston/files/weston.socket ${D}/${systemd_system_unitdir}
+	if [ ${MACHINE} = "oracle-virtualbox41" ] ; then
+		install -m 0644 ${S}/recipes/weston/files/weston-for-x11-backend.service ${D}/${systemd_system_unitdir}/weston.service
+		install -m 0644 ${S}/recipes/weston/files/weston.socket ${D}/${systemd_system_unitdir}
+	else
+		install -m 0644 ${S}/recipes/weston/files/weston.service ${D}/${systemd_system_unitdir}
+		install -m 0644 ${S}/recipes/weston/files/weston.socket ${D}/${systemd_system_unitdir}
+	fi
 }
 
 PARALLEL_MAKE = " "
