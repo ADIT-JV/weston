@@ -2801,8 +2801,8 @@ find_primary_gpu(struct drm_backend *b, const char *seat)
 {
 	struct udev_enumerate *e;
 	struct udev_list_entry *entry;
-	const char *path, *device_seat, *id;
-	struct udev_device *device, *drm_device, *pci;
+	const char *path, *device_seat, *id, *driver_name;
+	struct udev_device *device, *drm_device, *parent_dev;
 
 	e = udev_enumerate_new(b->udev);
 	udev_enumerate_add_match_subsystem(e, "drm");
@@ -2823,11 +2823,18 @@ find_primary_gpu(struct drm_backend *b, const char *seat)
 			continue;
 		}
 
-		pci = udev_device_get_parent_with_subsystem_devtype(device,
-								"pci", NULL);
-		if (pci) {
-			id = udev_device_get_sysattr_value(pci, "boot_vga");
+		parent_dev = udev_device_get_parent(device);
+		if (parent_dev) {
+			id = udev_device_get_sysattr_value(parent_dev, "boot_vga");
 			if (id && !strcmp(id, "1")) {
+				if (drm_device)
+					udev_device_unref(drm_device);
+				drm_device = device;
+				break;
+			}
+
+			driver_name = udev_device_get_driver(parent_dev);
+			if (driver_name && !strcmp(driver_name,"rcar-du")) {
 				if (drm_device)
 					udev_device_unref(drm_device);
 				drm_device = device;
