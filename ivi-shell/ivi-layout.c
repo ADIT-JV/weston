@@ -614,10 +614,6 @@ update_layer_dirty(struct ivi_layout_layer *ivilayer)
 	struct weston_view *tmpview = NULL;
 	struct ivi_layout_surface *ivisurf  = NULL;
 
-	/*In case of no prop change, this just returns*/
-	if (!(ivilayer->prop.event_mask & IVI_NOTIFICATION_VISIBILITY))
-		return;
-
 	wl_list_for_each(ivisurf, &ivilayer->order.surface_list, order.link) {
 		tmpview = get_weston_view(ivisurf);
 		assert(tmpview != NULL);
@@ -630,10 +626,6 @@ static void
 update_surface_dirty(struct ivi_layout_surface *ivisurf)
 {
 	struct weston_view *tmpview = NULL;
-
-	/*In case of no prop change, this just returns*/
-	if (!(ivisurf->prop.event_mask & IVI_NOTIFICATION_VISIBILITY))
-		return;
 
 	tmpview = get_weston_view(ivisurf);
 	assert(tmpview != NULL);
@@ -651,20 +643,22 @@ commit_changes(struct ivi_layout *layout)
 	wl_list_for_each(iviscrn, &layout->screen_list, link) {
 		wl_list_for_each(ivilayer, &iviscrn->order.layer_list, order.link) {
 			/*
-			 * If ivilayer is invisible, weston_view of ivisurf doesn't
-			 * need to be modified.
+			 * If ivilayer is invisible, dirty rect for all the associated views
+			 * has to be properly set for the next frame
 			 */
-			if (ivilayer->prop.visibility == false) {
+			if ((ivilayer->prop.visibility == false)&& \
+					(ivilayer->prop.event_mask & IVI_NOTIFICATION_VISIBILITY)) {
 				update_layer_dirty(ivilayer);
 				continue;
 			}
 
 			wl_list_for_each(ivisurf, &ivilayer->order.surface_list, order.link) {
 				/*
-				 * If ivilayer is invisible, weston_view of ivisurf doesn't
-				 * need to be modified.
+				 * If ivisurf is invisible, dirty rect for the corresponding view
+				 * has to be properly set for the next frame
 				 */
-				if (ivisurf->prop.visibility == false) {
+				if ((ivisurf->prop.visibility == false)&& \
+						(ivisurf->prop.event_mask & IVI_NOTIFICATION_VISIBILITY)) {
 					update_surface_dirty(ivisurf);
 					continue;
 				}
