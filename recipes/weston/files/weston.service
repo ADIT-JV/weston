@@ -1,7 +1,7 @@
 [Unit]
 Description=Weston-IVI-Shell
-After=graphics.target early-devices-setup.service volatile-fs.target
-Requires=graphics.target early-devices-setup.service volatile-fs.target
+After=graphics.target early-devices-setup.service volatile-fs.target weston.socket
+Requires=graphics.target early-devices-setup.service volatile-fs.target weston.socket
 Before=basic.target systemd-modules-load.service systemd-sysctl.service
 DefaultDependencies=no
 
