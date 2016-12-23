@@ -9,7 +9,7 @@ DefaultDependencies=no
 Type=notify
 Environment=XDG_RUNTIME_DIR=/tmp DISPLAY=:0.0
 WatchdogSec=0
-ExecStart=/usr/bin/weston --modules=systemd-notify.so
+ExecStart=/usr/bin/weston --modules=systemd-notify.so --width=1920 --height=1080
 Nice=-20
 UMask=0017
 User=root
