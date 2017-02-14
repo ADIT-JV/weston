@@ -893,7 +893,18 @@ commit_screen_list(struct ivi_layout *layout)
 	struct ivi_layout_layer   *ivilayer = NULL;
 	struct ivi_layout_layer   *next     = NULL;
 	struct ivi_layout_view *ivi_view = NULL;
+	struct weston_view *view = NULL;
+	struct weston_view *view_next = NULL;
 
+	/* Earlier only the head node was reset, but the remaining links
+	 * won't be changed. Due to this, faced crash issue (or sometimes
+	 * list was looping) in weston_view_destroy API. So clearing the
+	 * entire list*/
+	wl_list_for_each_safe(view, view_next,
+		&layout->layout_layer.view_list.link, layer_link.link) {
+		wl_list_remove(&view->layer_link.link);
+		wl_list_init(&view->layer_link.link);
+	}
 	/* Clear view list of layout ivi_layer */
 	wl_list_init(&layout->layout_layer.view_list.link);
 
