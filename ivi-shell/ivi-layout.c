@@ -101,6 +101,63 @@ struct ivi_rectangle
 
 static struct ivi_layout ivilayout = {0};
 
+static void
+destroy_screen(struct ivi_layout_screen *iviscrn)
+{
+	wl_list_init(&iviscrn->pending.layer_list);
+	wl_list_init(&iviscrn->order.layer_list);
+
+	wl_list_remove(&iviscrn->link);
+	free(iviscrn);
+}
+
+static void
+output_destroyed_event(struct wl_listener *listener, void *data)
+{
+	struct ivi_layout *layout =
+			wl_container_of(listener, layout, output_destroyed);
+	struct ivi_layout_screen *iviscrn = NULL;
+	struct ivi_layout_screen *next = NULL;
+	struct weston_output *destroyed_output = (struct weston_output*)data;
+
+	wl_list_for_each_safe(iviscrn, next, &layout->screen_list, link) {
+		if (iviscrn->output == destroyed_output) {
+			destroy_screen(iviscrn);
+		}
+	}
+}
+
+static void
+add_screen(struct weston_output *output)
+{
+	struct ivi_layout *layout = get_instance();
+	struct ivi_layout_screen *iviscrn = NULL;
+
+	if(!output)
+		return;
+
+	iviscrn = calloc(1, sizeof *iviscrn);
+	if (iviscrn == NULL) {
+		weston_log("fails to allocate memory\n");
+		return;
+	}
+
+	iviscrn->layout = layout;
+	iviscrn->output = output;
+
+	wl_list_init(&iviscrn->pending.layer_list);
+	wl_list_init(&iviscrn->order.layer_list);
+	wl_list_insert(&layout->screen_list, &iviscrn->link);
+}
+
+static void
+output_created_event(struct wl_listener *listener, void *data)
+{
+	struct weston_output *created_output = (struct weston_output*)data;
+
+	add_screen(created_output);
+}
+
 struct ivi_layout *
 get_instance(void)
 {
@@ -256,26 +313,10 @@ ivi_layout_surface_destroy(struct ivi_layout_surface *ivisurf)
 static void
 create_screen(struct weston_compositor *ec)
 {
-	struct ivi_layout *layout = get_instance();
-	struct ivi_layout_screen *iviscrn = NULL;
 	struct weston_output *output = NULL;
 
 	wl_list_for_each(output, &ec->output_list, link) {
-		iviscrn = calloc(1, sizeof *iviscrn);
-		if (iviscrn == NULL) {
-			weston_log("fails to allocate memory\n");
-			continue;
-		}
-
-		iviscrn->layout = layout;
-
-		iviscrn->output = output;
-
-		wl_list_init(&iviscrn->pending.layer_list);
-
-		wl_list_init(&iviscrn->order.layer_list);
-
-		wl_list_insert(&layout->screen_list, &iviscrn->link);
+		add_screen(output);
 	}
 }
 
@@ -612,7 +653,7 @@ calc_surface_to_global_matrix_and_mask_to_weston_surface(
 }
 
 static void
-update_prop(struct ivi_layout_view *ivi_view)
+update_prop(struct ivi_layout_view *ivi_view, bool force)
 {
 	struct ivi_layout_surface *ivisurf = ivi_view->ivisurf;
 	struct ivi_layout_layer *ivilayer = ivi_view->on_layer;
@@ -621,7 +662,7 @@ update_prop(struct ivi_layout_view *ivi_view)
 	bool can_calc = true;
 
 	/*In case of no prop change, this just returns*/
-	if (!ivilayer->prop.event_mask && !ivisurf->prop.event_mask)
+	if (!ivilayer->prop.event_mask && !ivisurf->prop.event_mask && !force)
 		return;
 
 	update_opacity(ivilayer, ivisurf, ivi_view->view);
@@ -695,7 +736,7 @@ commit_changes(struct ivi_layout *layout)
 			continue;
 		}
 
-		update_prop(ivi_view);
+		update_prop(ivi_view, false);
 	}
 }
 
@@ -1872,6 +1913,24 @@ ivi_layout_commit_changes(void)
 	return IVI_SUCCEEDED;
 }
 
+static void
+output_resized_moved_events(struct wl_listener *listener, void *data)
+{
+	struct ivi_layout_screen *iviscrn = NULL;
+	struct ivi_layout_layer *ivilayer;
+	struct ivi_layout_view *ivi_view;
+	struct weston_output *output = (struct weston_output*)data;
+
+	iviscrn = get_screen_from_output(output);
+
+	wl_list_for_each(ivilayer, &iviscrn->order.layer_list, order.link) {
+		wl_list_for_each(ivi_view, &ivilayer->order.view_list,
+				 order_link) {
+			update_prop(ivi_view, true);
+		}
+	}
+}
+
 static int32_t
 ivi_layout_layer_set_transition(struct ivi_layout_layer *ivilayer,
 				enum ivi_layout_transition_type type,
@@ -2046,6 +2105,18 @@ ivi_layout_init_with_compositor(struct weston_compositor *ec)
 				  WESTON_LAYER_POSITION_NORMAL);
 
 	create_screen(ec);
+
+	layout->output_created.notify = output_created_event;
+	wl_signal_add(&ec->output_created_signal, &layout->output_created);
+
+	layout->output_destroyed.notify = output_destroyed_event;
+	wl_signal_add(&ec->output_destroyed_signal, &layout->output_destroyed);
+
+	layout->output_resized.notify = output_resized_moved_events;
+	wl_signal_add(&ec->output_resized_signal, &layout->output_resized);
+
+	layout->output_moved.notify = output_resized_moved_events;
+	wl_signal_add(&ec->output_moved_signal, &layout->output_moved);
 
 	layout->transitions = ivi_layout_transition_set_create(ec);
 	wl_list_init(&layout->pending_transition_list);
