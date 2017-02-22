@@ -104,6 +104,27 @@ static struct ivi_layout ivilayout = {0};
 static void
 destroy_screen(struct ivi_layout_screen *iviscrn)
 {
+	struct ivi_layout_layer *ivilayer;
+	struct ivi_layout_layer *next;
+
+	/*we need to remove the layers from pending and order lists
+	 *otherwise the memory will be corrupted during the
+	 *wl_list_remove of pending.link or order.link from
+	 *ivi_layout_screen_add_layer() or commit_screen_list()
+	 *and on_screen has to be set as NULL otherwise the commit_changes()
+	 *API will try to refer the freed iviscrn*/
+	wl_list_for_each_safe(ivilayer, next, &iviscrn->pending.layer_list, pending.link) {
+		wl_list_remove(&ivilayer->pending.link);
+		wl_list_init(&ivilayer->pending.link);
+		ivilayer->on_screen = NULL;
+	}
+
+	wl_list_for_each_safe(ivilayer, next, &iviscrn->order.layer_list, order.link) {
+		wl_list_remove(&ivilayer->order.link);
+		wl_list_init(&ivilayer->order.link);
+		ivilayer->on_screen = NULL;
+	}
+
 	wl_list_init(&iviscrn->pending.layer_list);
 	wl_list_init(&iviscrn->order.layer_list);
 
@@ -125,6 +146,7 @@ output_destroyed_event(struct wl_listener *listener, void *data)
 			destroy_screen(iviscrn);
 		}
 	}
+	ivi_layout_commit_changes();
 }
 
 static void
@@ -156,6 +178,7 @@ output_created_event(struct wl_listener *listener, void *data)
 	struct weston_output *created_output = (struct weston_output*)data;
 
 	add_screen(created_output);
+	ivi_layout_commit_changes();
 }
 
 struct ivi_layout *
