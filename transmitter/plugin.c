@@ -37,6 +37,16 @@
 #include "plugin.h"
 #include "transmitter_api.h"
 
+/* waltham */
+#include <errno.h>
+#include <sys/epoll.h>
+#include <sys/timerfd.h>
+#include <waltham-object.h>
+#include <waltham-client.h>
+#include <waltham-connection.h>
+
+#define MAX_EPOLL_WATCHES 2
+
 /* XXX: all functions and variables with a name, and things marked with a
  * comment, containing the word "fake" are mockups that need to be
  * removed from the final implementation.
@@ -123,7 +133,7 @@ fake_frame_callback(struct weston_transmitter_surface *txs)
 						frame_callback_handler, txs);
 	}
 
-	wl_event_source_timer_update(txs->frame_timer, 85);
+	wl_event_source_timer_update(txs->frame_timer, 1);
 }
 
 static void
@@ -139,8 +149,26 @@ transmitter_surface_configure(struct weston_transmitter_surface *txs,
 }
 
 static void
+buffer_send_complete(struct wthp_buffer *b, uint32_t serial)
+{
+	weston_log("wth_buffer.send_complete(%d)\n", serial);
+	struct weston_transmitter_surface *txs =
+		wth_object_get_user_data((struct wth_object *)b);
+
+	frame_callback_handler(txs);
+	wthp_buffer_destroy(b);
+}
+
+static const struct wthp_buffer_listener buffer_listener = {
+	buffer_send_complete
+};
+
+static void
 transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 {
+	struct weston_transmitter *txr = txs->remote->transmitter;
+
+	fprintf(stderr, "transmitter_surface_gather_state %p\n", txs); fflush(stderr);
 	weston_log("Transmitter: update surface %p (%d, %d), %d cb\n",
 		   txs->surface, txs->attach_dx, txs->attach_dy,
 		   wl_list_length(&txs->surface->frame_callback_list));
@@ -152,7 +180,41 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 	wl_list_insert_list(&txs->feedback_list, &txs->surface->feedback_list);
 	wl_list_init(&txs->surface->feedback_list);
 
+
 	/* TODO: transmit surface state to remote */
+
+	/* waltham */
+	struct weston_surface *surf = txs->surface;
+	struct weston_compositor *comp = surf->compositor;
+	int32_t stride, data_sz;
+	void *data;
+
+	weston_log("width %d height %d\n", surf->width, surf->height);
+	stride = surf->width * (PIXMAN_FORMAT_BPP(comp->read_format) / 8);
+	weston_log("stride %d\n", stride);
+
+	data = malloc(stride * surf->height);
+	data_sz = stride * surf->height;
+	weston_log("data_sz = %d\n", data_sz);
+
+	weston_surface_copy_content(surf, data,
+				    data_sz, 0, 0, surf->width, surf->height);
+
+	txs->wthp_buf = wthp_blob_factory_create_buffer(txr->display->blob_factory,
+							data_sz,
+							data,
+							surf->width,
+							surf->height,
+							stride,
+							PIXMAN_FORMAT_BPP(comp->read_format));
+
+	wthp_buffer_set_listener(txs->wthp_buf, &buffer_listener, txs);
+
+	wthp_surface_attach(txs->wthp_surf, txs->wthp_buf, txs->attach_dx, txs->attach_dy);
+	wthp_surface_damage(txs->wthp_surf, txs->attach_dx, txs->attach_dy, surf->width, surf->height);
+	wthp_surface_commit(txs->wthp_surf);
+
+	wth_connection_flush(txr->display->connection);
 
 	txs->attach_dx = 0;
 	txs->attach_dy = 0;
@@ -169,7 +231,7 @@ transmitter_surface_apply_state(struct wl_listener *listener, void *data)
 	assert(data == NULL);
 
 	transmitter_surface_gather_state(txs);
-	fake_frame_callback(txs);
+//	fake_frame_callback(txs);
 }
 
 /** Mark the weston_transmitter_surface dead.
@@ -182,6 +244,7 @@ static void
 transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 {
 	struct weston_frame_callback *framecb, *cnext;
+	struct weston_transmitter *txr;
 
 	/* may be called multiple times */
 	if (!txs->surface)
@@ -204,6 +267,11 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 	weston_presentation_feedback_discard_list(&txs->feedback_list);
 	wl_list_for_each_safe(framecb, cnext, &txs->frame_callback_list, link)
 		wl_resource_destroy(framecb->resource);
+
+	txr = txs->remote->transmitter;
+	if (!txr->display->compositor)
+		weston_log("txr->compositor is NULL\n");
+	wthp_surface_destroy(txs->wthp_surf);
 
 	/* In case called from destroy_transmitter() */
 	txs->remote = NULL;
@@ -350,7 +418,9 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 				   struct weston_transmitter_remote *remote,
 				   struct wl_listener *stream_status)
 {
+	weston_log("transmitter_surface_push_to_remote\n");
 	struct weston_transmitter_surface *txs;
+	struct weston_transmitter *txr;
 
 	if (transmitter_surface_get(ws)) {
 		weston_log("Transmitter: surface %p already bound.\n", ws);
@@ -382,6 +452,12 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 	wl_list_init(&txs->feedback_list);
 
 	/* TODO: create the content stream connection... */
+
+	txr = txs->remote->transmitter;
+	if (!txr->display->compositor)
+		weston_log("txr->compositor is NULL\n");
+	txs->wthp_surf = wthp_compositor_create_surface(txr->display->compositor);
+
 	fake_stream_opening(txs);
 
 	return txs;
@@ -428,6 +504,288 @@ conn_timer_handler(void *data) /* fake */
 	return 0;
 }
 
+/* waltham */
+/* The server advertises a global interface.
+ * We can store the ad for later and/or bind to it immediately
+ * if we want to.
+ * We also need to keep track of the globals we bind to, so that
+ * global_remove can be handled properly (not implemented).
+ */
+static void
+registry_handle_global(struct wthp_registry *registry,
+		       uint32_t name,
+		       const char *interface,
+		       uint32_t version)
+{
+	struct waltham_display *dpy = wth_object_get_user_data((struct wth_object *)registry);
+
+	printf("got global %d: '%s' version '%d'\n",
+	name, interface, version);
+
+	if (strcmp(interface, "wthp_compositor") == 0) {
+		assert(!dpy->compositor); 
+		dpy->compositor = (struct wthp_compositor *)wthp_registry_bind(registry, name, interface, 1);
+		/* has no events to handle */
+	} else if (strcmp(interface, "wthp_blob_factory") == 0) {
+		assert(!dpy->blob_factory); 
+		dpy->blob_factory = (struct wthp_blob_factory *)wthp_registry_bind(registry, name, interface, 1);
+		/* has no events to handle */
+#if 0
+	} else if (strcmp(interface, "wthp_seat") == 0) {
+		assert(!dpy->seat); 
+		dpy->seat = (struct wthp_seat *)wthp_registry_bind(registry, name, interface, 1);
+	else if (strcmp(interface, "ivi_application") == 0) {
+		assert(!dpy->application);
+		dpy->application = (struct ivi_application *)wthp_registry_bind(registry, name, interface, 1);
+#endif
+	}
+}
+
+/* The server removed a global.
+ * We should destroy everything we created through that global,
+ * and destroy the objects we created by binding to it.
+ * The identification happens by global's name, so we need to keep
+ * track what names we bound.
+ * (not implemented)
+ */
+static void
+registry_handle_global_remove(struct wthp_registry *wthp_registry,
+			      uint32_t name)
+{
+	printf("global %d removed\n", name);
+}
+
+static const struct wthp_registry_listener registry_listener = {
+	registry_handle_global,
+	registry_handle_global_remove
+};
+
+static int
+watch_ctl(struct watch *w, int op, uint32_t events)
+{
+	struct epoll_event ee;
+
+	ee.events = events;
+	ee.data.ptr = w;
+	return epoll_ctl(w->display->epoll_fd, op, w->fd, &ee);
+}
+
+static void
+connection_handle_data(struct watch *w, uint32_t events)
+{
+	struct waltham_display *dpy = container_of(w, struct waltham_display, conn_watch);
+	int ret;
+
+	if (events & EPOLLERR) {
+		fprintf(stderr, "Connection errored out.\n");
+		dpy->running = false;
+
+		return;
+	}
+
+	if (events & EPOLLOUT) {
+		/* Flush out again. If the flush completes, stop
+		 * polling for writable as everything has been written.
+		 */
+		ret = wth_connection_flush(dpy->connection);
+		if (ret == 0)
+			watch_ctl(&dpy->conn_watch, EPOLL_CTL_MOD, EPOLLIN);
+		else if (ret < 0 && errno != EAGAIN)
+		dpy->running = false;
+	}
+
+	if (events & EPOLLIN) {
+		/* Do not ignore EPROTO */
+		ret = wth_connection_read(dpy->connection);
+		if (ret < 0) {
+			perror("Connection read error\n");
+			dpy->running = false;
+
+			return;
+		}
+	}
+
+	if (events & EPOLLHUP) {
+		fprintf(stderr, "Connection hung up.\n");
+		dpy->running = false;
+
+		return;
+	}
+}
+
+static void
+waltham_mainloop(void *data)
+{
+	struct waltham_display *dpy = (struct waltham_display *) data;
+	struct epoll_event ee[MAX_EPOLL_WATCHES];
+	struct watch *w;
+	int count;
+	int i;
+	int ret;
+
+	dpy->running = true;
+
+	while (1) {
+		/* Dispatch queued events. */
+		ret = wth_connection_dispatch(dpy->connection);
+		if (ret < 0)
+			dpy->running = false;
+                
+		if (!dpy->running)
+			break;
+
+		/* Run any application idle tasks at this point. */
+		/* (nothing to run so far) */
+
+		/* Flush out buffered requests. If the Waltham socket is
+		 * full, poll it for writable too, and continue flushing then.
+		 */
+		ret = wth_connection_flush(dpy->connection);
+		if (ret < 0 && errno == EAGAIN) {
+			watch_ctl(&dpy->conn_watch, EPOLL_CTL_MOD, EPOLLIN | EPOLLOUT);
+		} else if (ret < 0) {
+			perror("Connection flush failed");
+			break;
+		}
+
+		/* Wait for events or signals */
+		count = epoll_wait(dpy->epoll_fd,
+		ee, ARRAY_LENGTH(ee), -1);
+		if (count < 0 && errno != EINTR) {
+			perror("Error with epoll_wait");
+		break;
+		}
+
+		/* Waltham events only read in the callback, not dispatched,
+		 * if the Waltham socket signalled readable. If it signalled
+		 * writable, flush more. See connection_handle_data().
+		 */
+		for (i = 0; i < count; i++) {
+			w = ee[i].data.ptr;
+			w->cb(w, ee[i].events);
+		}
+	}
+}
+
+/* A one-off asynchronous open-coded roundtrip handler. */
+static void
+bling_done(struct wthp_callback *cb, uint32_t arg)
+{
+	fprintf(stderr, "...sync done.\n");
+
+	wthp_callback_free(cb);
+}
+
+static const struct wthp_callback_listener bling_listener = {
+	bling_done
+};
+
+/* XXX: these three handlers should not be here */
+
+static void
+not_here_error(struct wth_display *d, struct wth_object *obj,
+	       uint32_t code, const char *msg)
+{
+	struct wth_connection *conn;
+
+	conn = wth_object_get_user_data((struct wth_object *)d);
+	fprintf(stderr, "fatal protocol error %d: %s\n", code, msg);
+	wth_connection_set_protocol_error(conn, 0xf000dead /* XXX obj->id */,
+					  "unknown", code);
+}
+
+static void
+not_here_delete_id(struct wth_display *d, uint32_t id)
+{
+	fprintf(stderr, "wth_display.delete_id(%d)\n", id);
+}
+
+static void
+not_here_server_version(struct wth_display *d, uint32_t ver)
+{
+	fprintf(stderr, "wth_display.server_version(%d)\n", ver);
+}
+
+static const struct wth_display_listener not_here_listener = {
+	not_here_error,
+	not_here_delete_id,
+	not_here_server_version
+};
+
+static int
+waltham_client_init(struct waltham_display *dpy)
+{
+	char *server_address;
+
+	if (!dpy)
+		return -1;
+
+	dpy->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
+	if (dpy->epoll_fd == -1) {
+		perror("Error on epoll_create1");
+		return -1;
+	}
+
+	/* TODO:
+	 * get server_address from controller (adrress is set to weston.ini)
+	 */
+	server_address = getenv("SERVER_ADDRESS");
+
+	if (server_address)
+		dpy->connection = wth_connect_to_server(server_address, "34400");
+	else
+		dpy->connection = wth_connect_to_server("localhost", "34400");
+
+	if (!dpy->connection) {
+		perror("Error connecting");
+		return -1;
+	}
+
+	dpy->conn_watch.display = dpy;
+	dpy->conn_watch.cb = connection_handle_data;
+	dpy->conn_watch.fd = wth_connection_get_fd(dpy->connection);
+	if (watch_ctl(&dpy->conn_watch, EPOLL_CTL_ADD, EPOLLIN) < 0) {
+		perror("Error setting up connection polling");
+		return -1;
+	}
+
+	dpy->display = wth_connection_get_display(dpy->connection);
+	/* wth_display_set_listener() is already done by waltham, as
+	 * all the events are just control messaging.
+	 */
+
+	/* ..except Waltham does not yet, so let's plug in something
+	 * to print out stuff at least.
+	 */
+	wth_display_set_listener(dpy->display, &not_here_listener, dpy->connection);
+	/* Create a registry so that we will get advertisements of the
+	 * interfaces implemented by the server.
+	 */
+	dpy->registry = wth_display_get_registry(dpy->display);
+	wthp_registry_set_listener(dpy->registry, &registry_listener, dpy);
+
+	/* Roundtrip ensures all globals' ads have been received. */
+	if (wth_connection_roundtrip(dpy->connection) < 0) {
+		fprintf(stderr, "Roundtrip failed.\n");
+		return -1;
+	}
+
+	if (!dpy->compositor) {
+		fprintf(stderr, "Did not find wthp_compositor, quitting.\n");
+		return -1;
+	}
+
+	/* A one-off asynchronous roundtrip, just for fun. */
+	fprintf(stderr, "sending wth_display.sync...\n");
+	dpy->bling = wth_display_sync(dpy->display);
+	wthp_callback_set_listener(dpy->bling, &bling_listener, dpy);
+
+	pthread_t run_thread;
+	pthread_create(&run_thread, NULL, waltham_mainloop, (void*)dpy);
+
+	return 0;
+}
+
 static struct weston_transmitter_remote *
 transmitter_connect_to_remote(struct weston_transmitter *txr,
 			      const char *addr,
@@ -435,6 +793,7 @@ transmitter_connect_to_remote(struct weston_transmitter *txr,
 {
 	struct weston_transmitter_remote *remote;
 	struct wl_event_loop *loop;
+	int ret;
 
 	remote = zalloc(sizeof (*remote));
 	if (!remote)
@@ -452,6 +811,18 @@ transmitter_connect_to_remote(struct weston_transmitter *txr,
 
 	/* XXX: actually start connecting */
 	weston_log("Transmitter connecting to %s...\n", addr);
+
+	/* waltham */
+	txr->display = zalloc(sizeof *txr->display);
+	if (!txr->display)
+		return NULL;
+
+	ret = waltham_client_init(txr->display);
+	if (ret < 0) {
+		weston_log("Fatal: Transmitter waltham connecting failed.\n");
+		return NULL;
+	}
+
 	/* fake it with a one second timer */
 	loop = wl_display_get_event_loop(txr->compositor->wl_display);
 	remote->conn_timer = wl_event_loop_add_timer(loop, conn_timer_handler,

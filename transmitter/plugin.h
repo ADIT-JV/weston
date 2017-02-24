@@ -36,11 +36,49 @@
 #include "compositor.h"
 #include "transmitter_api.h"
 
+#include <waltham-client.h>
+
+struct walthma_display;
+
+/* epoll structure */
+struct watch { 
+	struct waltham_display *display;
+	int fd;
+	void (*cb)(struct watch *w, uint32_t events);
+};
+
+struct waltham_display {
+	struct wth_connection *connection;
+	struct watch conn_watch;
+	struct wth_display *display;
+
+	bool running;
+	int epoll_fd;
+
+	struct wthp_registry *registry;
+
+	struct wthp_callback *bling;
+
+	struct wthp_compositor *compositor;
+	struct wthp_blob_factory *blob_factory;
+//	struct wthp_seat *seat;
+	struct wtimer *fiddle_timer;
+};
+
+/* a timerfd based timer */
+struct wtimer {
+	struct watch watch;
+	void (*func)(struct wtimer *, void *);
+	void *data;
+};
+
 struct weston_transmitter {
 	struct weston_compositor *compositor;
 	struct wl_listener compositor_destroy_listener;
 
 	struct wl_list remote_list; /* transmitter_remote::link */
+
+	struct waltham_display *display; /* waltham */
 };
 
 struct weston_transmitter_remote {
@@ -84,6 +122,12 @@ struct weston_transmitter_surface {
 	int32_t attach_dy; /**< wl_surface.attach(buffer, dx, dy) */
 	struct wl_list frame_callback_list; /* weston_frame_callback::link */
 	struct wl_list feedback_list; /* weston_presentation_feedback::link */
+
+	/* waltham */
+	struct wthp_surface *wthp_surf;
+	struct wthp_blob_factory *wthp_blob;
+	struct wthp_buffer *wthp_buf;
+//	struct wthp_pointer *wthp_pointer;
 };
 
 struct weston_transmitter_output_info {
