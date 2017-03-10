@@ -54,6 +54,7 @@
 #include "pixman-renderer.h"
 #include "libbacklight.h"
 #include "libinput-seat.h"
+#include "v4l2-renderer.h"
 #include "launcher-util.h"
 #include "vaapi-recorder.h"
 #include "presentation-time-server-protocol.h"
@@ -114,6 +115,8 @@ struct drm_backend {
 
 	int use_pixman;
 
+	int use_v4l2;
+
 	uint32_t prev_state;
 
 	struct udev_input input;
@@ -142,6 +145,7 @@ struct drm_mode {
 struct drm_fb {
 	uint32_t fb_id, stride, handle, size;
 	int fd;
+	int dmafd;
 	int is_client_buffer;
 	struct weston_buffer_reference buffer_ref;
 
@@ -150,6 +154,9 @@ struct drm_fb {
 
 	/* Used by dumb fbs */
 	void *map;
+
+	/* Used by dmabuf */
+	struct linux_dmabuf_buffer *dmabuf;
 };
 
 struct drm_edid {
@@ -220,6 +227,7 @@ struct drm_sprite {
 };
 
 static struct gl_renderer_interface *gl_renderer;
+static struct v4l2_renderer_interface *v4l2_renderer;
 
 static const char default_seat[] = "seat0";
 
@@ -300,13 +308,22 @@ drm_fb_create_dumb(struct drm_backend *b, unsigned width, unsigned height)
 	if (ret)
 		goto err_add_fb;
 
-	fb->map = mmap(NULL, fb->size, PROT_WRITE,
+	fb->map = mmap(NULL, fb->size, PROT_READ | PROT_WRITE,
 		       MAP_SHARED, b->drm.fd, map_arg.offset);
 	if (fb->map == MAP_FAILED)
 		goto err_add_fb;
 
+	if (b->use_v4l2) {
+		ret = drmPrimeHandleToFD(b->drm.fd, fb->handle, DRM_CLOEXEC,
+					 &fb->dmafd);
+		if (ret)
+			goto err_export_handle;
+	}
+
 	return fb;
 
+err_export_handle:
+	munmap(fb->map, fb->size);
 err_add_fb:
 	drmModeRmFB(b->drm.fd, fb->fb_id);
 err_bo:
@@ -333,10 +350,90 @@ drm_fb_destroy_dumb(struct drm_fb *fb)
 
 	munmap(fb->map, fb->size);
 
+	if (fb->dmafd)
+		close(fb->dmafd);
+
 	memset(&destroy_arg, 0, sizeof(destroy_arg));
 	destroy_arg.handle = fb->handle;
 	drmIoctl(fb->fd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy_arg);
 
+	free(fb);
+}
+
+static inline void close_drm_handle(int fd, uint32_t handle)
+{
+	struct drm_gem_close gem_close = {.handle = handle};
+	int ret;
+
+	ret = drmIoctl(fd, DRM_IOCTL_GEM_CLOSE, &gem_close);
+	if (ret)
+		weston_log("DRM_IOCTL_GEM_CLOSE failed.(%s)\n",
+			   strerror(errno));
+}
+
+static struct drm_fb *
+drm_fb_create_dmabuf(struct linux_dmabuf_buffer *dmabuf,
+		     struct drm_backend *backend, uint32_t format)
+{
+	struct drm_fb *fb = NULL;
+	uint32_t width, height, fb_id, handles[4] = {0};
+	int i, ret;
+
+	if (!format)
+		return NULL;
+
+	width = dmabuf->attributes.width;
+	height = dmabuf->attributes.height;
+	if (backend->min_width > width || width > backend->max_width ||
+	    backend->min_height > height || height > backend->max_height) {
+		weston_log("dmabuf geometry out of bounds\n");
+		return NULL;
+	}
+
+	for (i = 0; i < dmabuf->attributes.n_planes; i++) {
+		ret = drmPrimeFDToHandle(backend->drm.fd,
+					 dmabuf->attributes.fd[i],
+					 &handles[i]);
+		if (ret) {
+			weston_log("drmPrimeFDToHandle() failed. %s\n",
+				   strerror(errno));
+			goto done;
+		}
+	}
+
+	fb = zalloc(sizeof *fb);
+	if (!fb)
+		goto done;
+
+	ret = drmModeAddFB2(backend->drm.fd, width, height,
+			    format, handles, dmabuf->attributes.stride,
+			    dmabuf->attributes.offset, &fb_id, 0);
+	if (ret) {
+		weston_log("drmModeAddFB2 failed. %s\n", strerror(errno));
+		free(fb);
+		fb = NULL;
+		goto done;
+	}
+
+	fb->fb_id = fb_id;
+	fb->stride = dmabuf->attributes.stride[0];
+	fb->fd = backend->drm.fd;
+	fb->dmabuf = dmabuf;
+
+done:
+	for (i = 0; i < dmabuf->attributes.n_planes; i++) {
+		if (!handles[i])
+			continue;
+		close_drm_handle(backend->drm.fd, handles[i]);
+	}
+	return fb;
+}
+
+static void drm_fb_destroy_dmabuf(struct drm_fb *fb)
+{
+	if (fb->fb_id)
+		drmModeRmFB(fb->fd, fb->fb_id);
+	weston_buffer_reference(&fb->buffer_ref, NULL);
 	free(fb);
 }
 
@@ -426,6 +523,8 @@ drm_output_release_fb(struct drm_output *output, struct drm_fb *fb)
 	if (fb->map &&
             (fb != output->dumb[0] && fb != output->dumb[1])) {
 		drm_fb_destroy_dumb(fb);
+	} else if (fb->dmabuf) {
+		drm_fb_destroy_dmabuf(fb);
 	} else if (fb->bo) {
 		if (fb->is_client_buffer)
 			gbm_bo_destroy(fb->bo);
@@ -437,12 +536,9 @@ drm_output_release_fb(struct drm_output *output, struct drm_fb *fb)
 
 static uint32_t
 drm_output_check_scanout_format(struct drm_output *output,
-				struct weston_surface *es, struct gbm_bo *bo)
+				struct weston_surface *es, uint32_t format)
 {
-	uint32_t format;
 	pixman_region32_t r;
-
-	format = gbm_bo_get_format(bo);
 
 	if (format == GBM_FORMAT_ARGB8888) {
 		/* We can scanout an ARGB buffer if the surface's
@@ -473,12 +569,13 @@ drm_output_prepare_scanout_view(struct drm_output *output,
 		(struct drm_backend *)output->base.compositor->backend;
 	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
 	struct weston_buffer_viewport *viewport = &ev->surface->buffer_viewport;
-	struct gbm_bo *bo;
+	struct linux_dmabuf_buffer *dmabuf;
+	struct gbm_bo *bo = NULL;
 	uint32_t format;
 
 	if (ev->geometry.x != output->base.x ||
 	    ev->geometry.y != output->base.y ||
-	    buffer == NULL || b->gbm == NULL ||
+	    buffer == NULL ||
 	    buffer->width != output->base.current_mode->width ||
 	    buffer->height != output->base.current_mode->height ||
 	    output->base.transform != viewport->buffer.transform ||
@@ -488,22 +585,29 @@ drm_output_prepare_scanout_view(struct drm_output *output,
 	if (ev->geometry.scissor_enabled)
 		return NULL;
 
-	bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_WL_BUFFER,
-			   buffer->resource, GBM_BO_USE_SCANOUT);
+	if ((dmabuf = linux_dmabuf_buffer_get(buffer->resource))) {
+		if (((format = drm_output_check_scanout_format(
+				output, ev->surface,
+				dmabuf->attributes.format)) == 0) ||
+		    (!(output->next = drm_fb_create_dmabuf(
+				dmabuf, b, format))))
+			return NULL;
+	} else if (b->gbm) {
+		bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_WL_BUFFER,
+				   buffer->resource, GBM_BO_USE_SCANOUT);
 
-	/* Unable to use the buffer for scanout */
-	if (!bo)
-		return NULL;
+		/* Unable to use the buffer for scanout */
+		if (!bo)
+			return NULL;
 
-	format = drm_output_check_scanout_format(output, ev->surface, bo);
-	if (format == 0) {
-		gbm_bo_destroy(bo);
-		return NULL;
-	}
-
-	output->next = drm_fb_get_from_bo(bo, b, format);
-	if (!output->next) {
-		gbm_bo_destroy(bo);
+		if (((format = drm_output_check_scanout_format(
+			      output, ev->surface,
+			      gbm_bo_get_format(bo))) == 0) ||
+		    (!(output->next = drm_fb_get_from_bo(bo, b, format)))) {
+			gbm_bo_destroy(bo);
+			return NULL;
+		}
+	} else {
 		return NULL;
 	}
 
@@ -563,6 +667,31 @@ drm_output_render_pixman(struct drm_output *output, pixman_region32_t *damage)
 }
 
 static void
+drm_output_render_v4l2(struct drm_output *output, pixman_region32_t *damage)
+{
+	struct weston_compositor *ec = output->base.compositor;
+	pixman_region32_t total_damage, previous_damage;
+
+	pixman_region32_init(&total_damage);
+	pixman_region32_init(&previous_damage);
+
+	pixman_region32_copy(&previous_damage, damage);
+
+	pixman_region32_union(&total_damage, damage, &output->previous_damage);
+	pixman_region32_copy(&output->previous_damage, &previous_damage);
+
+	output->current_image ^= 1;
+
+	output->next = output->dumb[output->current_image];
+	v4l2_renderer->set_output_buffer(&output->base, output->current_image);
+
+	ec->renderer->repaint_output(&output->base, &total_damage);
+
+	pixman_region32_fini(&total_damage);
+	pixman_region32_fini(&previous_damage);
+}
+
+static void
 drm_output_render(struct drm_output *output, pixman_region32_t *damage)
 {
 	struct weston_compositor *c = output->base.compositor;
@@ -570,6 +699,8 @@ drm_output_render(struct drm_output *output, pixman_region32_t *damage)
 
 	if (b->use_pixman)
 		drm_output_render_pixman(output, damage);
+	else if (b->use_v4l2)
+		drm_output_render_v4l2(output, damage);
 	else
 		drm_output_render_gl(output, damage);
 
@@ -872,11 +1003,9 @@ page_flip_handler(int fd, unsigned int frame,
 
 static uint32_t
 drm_output_check_sprite_format(struct drm_sprite *s,
-			       struct weston_view *ev, struct gbm_bo *bo)
+			       struct weston_view *ev, uint32_t format)
 {
-	uint32_t i, format;
-
-	format = gbm_bo_get_format(bo);
+	uint32_t i;
 
 	if (format == GBM_FORMAT_ARGB8888) {
 		pixman_region32_t r;
@@ -917,14 +1046,11 @@ drm_output_prepare_overlay_view(struct drm_output *output,
 	struct drm_sprite *s;
 	struct linux_dmabuf_buffer *dmabuf;
 	int found = 0;
-	struct gbm_bo *bo;
+	struct gbm_bo *bo = NULL;
 	pixman_region32_t dest_rect, src_rect;
 	pixman_box32_t *box, tbox;
 	uint32_t format;
 	wl_fixed_t sx1, sy1, sx2, sy2;
-
-	if (b->gbm == NULL)
-		return NULL;
 
 	if (viewport->buffer.transform != output->base.transform)
 		return NULL;
@@ -965,15 +1091,9 @@ drm_output_prepare_overlay_view(struct drm_output *output,
 	if (!found)
 		return NULL;
 
-	if ((dmabuf = linux_dmabuf_buffer_get(buffer_resource))) {
+	if ((dmabuf = linux_dmabuf_buffer_get(buffer_resource)) &&
+	    b->no_addfb2 && b->gbm) {
 #ifdef HAVE_GBM_FD_IMPORT
-		/* XXX: TODO:
-		 *
-		 * Use AddFB2 directly, do not go via GBM.
-		 * Add support for multiplanar formats.
-		 * Both require refactoring in the DRM-backend to
-		 * support a mix of gbm_bos and drmfbs.
-		 */
 		struct gbm_import_fd_data gbm_dmabuf = {
 			.fd     = dmabuf->attributes.fd[0],
 			.width  = dmabuf->attributes.width,
@@ -990,22 +1110,24 @@ drm_output_prepare_overlay_view(struct drm_output *output,
 #else
 		return NULL;
 #endif
-	} else {
+	} else if (b->gbm) {
 		bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_WL_BUFFER,
 				   buffer_resource, GBM_BO_USE_SCANOUT);
 	}
-	if (!bo)
-		return NULL;
 
-	format = drm_output_check_sprite_format(s, ev, bo);
-	if (format == 0) {
-		gbm_bo_destroy(bo);
-		return NULL;
-	}
-
-	s->next = drm_fb_get_from_bo(bo, b, format);
-	if (!s->next) {
-		gbm_bo_destroy(bo);
+	if (bo) {
+		if (((format = drm_output_check_sprite_format(
+			      s, ev, gbm_bo_get_format(bo))) == 0) ||
+		    (!(s->next = drm_fb_get_from_bo(bo, b, format)))) {
+			gbm_bo_destroy(bo);
+			return NULL;
+		}
+	} else if (dmabuf) {
+		if (((format = drm_output_check_sprite_format(
+			      s, ev, dmabuf->attributes.format)) == 0) ||
+		    (!(s->next = drm_fb_create_dmabuf(dmabuf, b, format))))
+			return NULL;
+	} else {
 		return NULL;
 	}
 
@@ -1302,6 +1424,9 @@ static void
 drm_output_fini_pixman(struct drm_output *output);
 
 static void
+drm_output_fini_v4l2(struct drm_output *output);
+
+static void
 drm_output_destroy(struct weston_output *output_base)
 {
 	struct drm_output *output = (struct drm_output *) output_base;
@@ -1334,6 +1459,8 @@ drm_output_destroy(struct weston_output *output_base)
 
 	if (b->use_pixman) {
 		drm_output_fini_pixman(output);
+	} else if (b->use_v4l2) {
+		drm_output_fini_v4l2(output);
 	} else {
 		gl_renderer->output_destroy(output_base);
 		gbm_surface_destroy(output->gbm_surface);
@@ -1387,6 +1514,8 @@ static int
 drm_output_init_egl(struct drm_output *output, struct drm_backend *b);
 static int
 drm_output_init_pixman(struct drm_output *output, struct drm_backend *b);
+static int
+drm_output_init_v4l2(struct drm_output *output, struct drm_backend *b);
 
 static int
 drm_output_switch_mode(struct weston_output *output_base, struct weston_mode *mode)
@@ -1432,6 +1561,13 @@ drm_output_switch_mode(struct weston_output *output_base, struct weston_mode *mo
 		drm_output_fini_pixman(output);
 		if (drm_output_init_pixman(output, b) < 0) {
 			weston_log("failed to init output pixman state with "
+				   "new mode\n");
+			return -1;
+		}
+	} else if (b->use_v4l2) {
+		drm_output_fini_v4l2(output);
+		if (drm_output_init_v4l2(output, b) < 0) {
+			weston_log("failed to init output v4l2 state with "
 				   "new mode\n");
 			return -1;
 		}
@@ -1609,6 +1745,17 @@ static int
 init_pixman(struct drm_backend *b)
 {
 	return pixman_renderer_init(b->compositor);
+}
+
+static int
+init_v4l2(struct drm_backend *b)
+{
+	v4l2_renderer = weston_load_module("v4l2-renderer.so",
+					   "v4l2_renderer_interface");
+	if (!v4l2_renderer)
+		return -1;
+
+	return v4l2_renderer->init(b->compositor, b->drm.fd, b->drm.filename);
 }
 
 /**
@@ -1931,6 +2078,55 @@ drm_output_fini_pixman(struct drm_output *output)
 		pixman_image_unref(output->image[i]);
 		output->dumb[i] = NULL;
 		output->image[i] = NULL;
+	}
+}
+
+static int
+drm_output_init_v4l2(struct drm_output *output, struct drm_backend *b)
+{
+	int w = output->base.current_mode->width;
+	int h = output->base.current_mode->height;
+	unsigned int i;
+	struct v4l2_bo_state bo_state[ARRAY_LENGTH(output->dumb)];
+
+	for (i = 0; i < ARRAY_LENGTH(output->dumb); i++) {
+		output->dumb[i] = drm_fb_create_dumb(b, w, h);
+		if (!output->dumb[i])
+			goto err;
+		bo_state[i].dmafd = output->dumb[i]->dmafd;
+		bo_state[i].map = output->dumb[i]->map;
+		bo_state[i].stride = output->dumb[i]->stride;
+	}
+
+	if (v4l2_renderer->output_create(&output->base, bo_state, ARRAY_LENGTH(output->dumb)) < 0)
+		goto err;
+
+	pixman_region32_init_rect(&output->previous_damage,
+				  output->base.x, output->base.y, output->base.width, output->base.height);
+
+	return 0;
+
+err:
+	for (i = 0; i < ARRAY_LENGTH(output->dumb); i++) {
+		if (output->dumb[i])
+			drm_fb_destroy_dumb(output->dumb[i]);
+
+		output->dumb[i] = NULL;
+	}
+
+	return -1;
+}
+
+static void
+drm_output_fini_v4l2(struct drm_output *output)
+{
+	unsigned int i;
+
+	v4l2_renderer->output_destroy(&output->base);
+
+	for (i = 0; i < ARRAY_LENGTH(output->dumb); i++) {
+		drm_fb_destroy_dumb(output->dumb[i]);
+		output->dumb[i] = NULL;
 	}
 }
 
@@ -2369,6 +2565,11 @@ create_output_for_connector(struct drm_backend *b,
 	if (b->use_pixman) {
 		if (drm_output_init_pixman(output, b) < 0) {
 			weston_log("Failed to init output pixman state\n");
+			goto err_output;
+		}
+	} else if (b->use_v4l2) {
+		if (drm_output_init_v4l2(output, b) < 0) {
+			weston_log("Failed to init output v4l2 state\n");
 			goto err_output;
 		}
 	} else if (drm_output_init_egl(output, b) < 0) {
@@ -3066,6 +3267,7 @@ drm_backend_create(struct weston_compositor *compositor,
 	b->sprites_are_broken = 1;
 	b->compositor = compositor;
 	b->use_pixman = config->use_pixman;
+	b->use_v4l2 = config->use_v4l2;
 	b->configure_output = config->configure_output;
 	b->use_current_mode = config->use_current_mode;
 
@@ -3108,6 +3310,11 @@ drm_backend_create(struct weston_compositor *compositor,
 	if (b->use_pixman) {
 		if (init_pixman(b) < 0) {
 			weston_log("failed to initialize pixman renderer\n");
+			goto err_udev_dev;
+		}
+	} else if (b->use_v4l2) {
+		if (init_v4l2(b) < 0) {
+			weston_log("failed to initialize v4l2 renderer\n");
 			goto err_udev_dev;
 		}
 	} else {
