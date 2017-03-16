@@ -107,6 +107,10 @@ do_install_append() {
 	# Weston doesn't need the .la files to load modules, so wipe them
 	rm -f ${D}/${libdir}/weston/*.la
 
+	# install udev rule
+	install -d ${D}${sysconfdir}
+	install ${S}/data/HMI-input.rules ${D}${sysconfdir}
+
         # install weston service file
         install -d ${D}/${systemd_system_unitdir}
 	if ${@bb.utils.contains('DISTRO_FEATURES','x11','true','false',d)}; then
