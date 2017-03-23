@@ -108,8 +108,8 @@ do_install_append() {
 	rm -f ${D}/${libdir}/weston/*.la
 
 	# install udev rule
-	install -d ${D}${sysconfdir}
-	install ${S}/data/HMI-input.rules ${D}${sysconfdir}
+	install -d ${D}${sysconfdir}/udev/rules.d
+	install ${S}/data/HMI-input.rules ${D}${sysconfdir}/udev/rules.d
 
         # install weston service file
         install -d ${D}/${systemd_system_unitdir}
