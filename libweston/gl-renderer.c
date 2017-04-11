@@ -49,6 +49,8 @@
 #include "shared/platform.h"
 #include "weston-egl-ext.h"
 
+#include "vm.h"
+
 struct gl_shader {
 	GLuint program;
 	GLuint vertex_shader, fragment_shader;
@@ -1099,6 +1101,12 @@ gl_renderer_repaint_output(struct weston_output *output,
 
 	if (use_output(output) < 0)
 		return;
+
+	/*
+	 * If we have a table being drawn in place of the scan out buffer, we
+	 * should return immediately upon receving success from it.
+	 */
+	VM_TABLE_DRAW(output, go, gr);
 
 	/* Calculate the viewport */
 	glViewport(go->borders[GL_RENDERER_BORDER_LEFT].width,
@@ -2710,6 +2718,7 @@ gl_renderer_output_create(struct weston_output *output,
 		pixman_region32_init(&go->buffer_damage[i]);
 
 	output->renderer_state = go;
+	VM_OUTPUT_INIT(output);
 
 	return 0;
 }
@@ -2806,6 +2815,7 @@ gl_renderer_destroy(struct weston_compositor *ec)
 	if (gr->fan_binding)
 		weston_binding_destroy(gr->fan_binding);
 
+	VM_DESTROY(gr);
 	free(gr);
 }
 
@@ -3167,6 +3177,8 @@ gl_renderer_display_create(struct weston_compositor *ec, EGLenum platform,
 							    gr->dummy_surface);
 		goto fail_with_error;
 	}
+
+	VM_INIT(gr);
 
 	return 0;
 
