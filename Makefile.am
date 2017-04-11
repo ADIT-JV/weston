@@ -306,6 +306,11 @@ westoninclude_HEADERS +=				\
 	ivi-shell/ivi-layout-export.h
 endif
 
+if ENABLE_SURFACE_REMOTING
+westoninclude_HEADERS +=				\
+	transmitter/transmitter_api.h
+endif
+
 if ENABLE_EGL
 libweston_module_LTLIBRARIES += gl-renderer.la
 gl_renderer_la_LDFLAGS = -module -avoid-version
