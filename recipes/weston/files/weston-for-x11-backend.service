@@ -1,0 +1,20 @@
+[Unit]
+Description=Weston-IVI-Shell
+After=graphics.target early-devices-setup.service volatile-fs.target weston.socket X.socket
+Requires=graphics.target early-devices-setup.service volatile-fs.target weston.socket X.socket
+Before=basic.target systemd-modules-load.service systemd-sysctl.service
+DefaultDependencies=no
+
+[Service]
+Type=notify
+Environment=XDG_RUNTIME_DIR=/tmp DISPLAY=:0.0
+WatchdogSec=0
+ExecStart=/usr/bin/weston --modules=systemd-notify.so
+Nice=-20
+UMask=0017
+User=root
+# primary group graphics to create wayland socket with graphics user
+Group=graphics
+SupplementaryGroups=graphics drm input adit_errmem_log
+[Install]
+WantedBy=multi-user.target
