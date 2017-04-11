@@ -220,6 +220,7 @@ struct weston_output {
 
 	bool enabled;
 	int scale;
+	bool share_surface;
 
 	int (*enable)(struct weston_output *output);
 	int (*disable)(struct weston_output *output);
