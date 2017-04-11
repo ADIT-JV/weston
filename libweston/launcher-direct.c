@@ -275,20 +275,12 @@ launcher_direct_connect(struct weston_launcher **out, struct weston_compositor *
 {
 	struct launcher_direct *launcher;
 
-	if (geteuid() != 0)
-		return -EINVAL;
-
 	launcher = zalloc(sizeof(*launcher));
 	if (launcher == NULL)
 		return -ENOMEM;
 
 	launcher->base.iface = &launcher_direct_iface;
 	launcher->compositor = compositor;
-
-	if (setup_tty(launcher, tty) == -1) {
-		free(launcher);
-		return -1;
-	}
 
 	* (struct launcher_direct **) out = launcher;
 	return 0;
