@@ -1,3 +1,28 @@
+/*
+ * Copyright © 2017 Intel Corporation
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
+ *
+ * The above copyright notice and this permission notice (including the
+ * next paragraph) shall be included in all copies or substantial
+ * portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 #include "vm.h"
 
 static struct gl_shader std_shader;
@@ -135,35 +160,8 @@ static void print_vm_buf_list(struct gl_renderer *gr)
 	weston_log("-------------------------\n");
 }
 
-static int get_bpp(struct ias_backend *bc, struct weston_buffer *buffer)
-{
-	struct gbm_bo *bo;
-	uint32_t format;
-
-	bo = gbm_bo_import(bc->gbm, GBM_BO_IMPORT_WL_BUFFER, buffer->resource, GBM_BO_USE_SCANOUT);
-	if (!bo) {
-		return 0;
-	}
-
-	format = gbm_bo_get_format(bo);
-	gbm_bo_destroy(bo);
-	switch(format)
-	{
-		case GBM_FORMAT_ARGB8888:
-		case GBM_FORMAT_XRGB8888:
-		case GBM_FORMAT_XRGB2101010:
-			return 32;
-
-		case GBM_FORMAT_RGB565:
-			return 16;
-
-		default:
-			return 16;
-	}
-}
-
 static void vm_add_buf(struct weston_compositor *ec, struct gl_renderer *gr,
-		struct gl_surface_state *gs, struct ias_backend *bc, struct weston_buffer *buffer)
+		struct gl_surface_state *gs, struct weston_buffer *buffer)
 {
 	struct vm_buffer_table *vbt = gr->vm_buffer_table;
 	struct gr_buffer_ref *gr_buffer_ref_ptr;
@@ -200,7 +198,7 @@ static void vm_add_buf(struct weston_compositor *ec, struct gl_renderer *gr,
 	gr->query_buffer(gr->egl_display, (void *) buffer->resource,
 			  EGL_TILING,
 			  tiling_format);
-	gr_buffer_ref_ptr->vm_buffer_info.bpp = get_bpp(bc, buffer);
+	gr_buffer_ref_ptr->vm_buffer_info.bpp = ec->backend->get_bpp(ec, buffer);
 
 	gr_buffer_ref_ptr->vm_buffer_info.status |= UPDATED;
 	gr_buffer_ref_ptr->vm_buffer_info.tile_format = tiling_format[0];
@@ -210,17 +208,14 @@ static void vm_add_buf(struct weston_compositor *ec, struct gl_renderer *gr,
 				gr_buffer_ref_ptr->vm_buffer_info.surface_name);
 	}
 
-	if(gl_renderer_interface.vm_dbg) {
-		print_vm_buf_list(gr);
-	}
+	//print_vm_buf_list(gr);
+
 }
 
 int vm_table_draw(struct weston_output *output, struct gl_output_state *go,
 		struct gl_renderer *gr)
 {
 	struct weston_compositor *ec = output->compositor;
-	struct ias_output *ias_output = (struct ias_output *) output;
-	struct ias_backend *bc = ias_output->ias_crtc->backend;
 	struct weston_view *view;
 	struct gl_surface_state *gs;
 	struct gr_buffer_ref *gr_buf;
@@ -266,11 +261,11 @@ int vm_table_draw(struct weston_output *output, struct gl_output_state *go,
 	}
 
 	wl_list_for_each_reverse(view, &ec->view_list, link) {
-		struct ias_output *io = (struct ias_output *) view->output;
-		if (io->vm && view->plane == &ec->primary_plane) {
+		struct weston_output *io = (struct weston_output *) view->output;
+		if (io->enable_surface_share && view->plane == &ec->primary_plane) {
 			gs = get_surface_state(view->surface);
 			if(gs->buffer_ref.buffer) {
-				vm_add_buf(ec, gr, gs, bc, gs->buffer_ref.buffer);
+				vm_add_buf(ec, gr, gs, gs->buffer_ref.buffer);
 			}
 		}
 	}
@@ -388,11 +383,6 @@ int vm_table_draw(struct weston_output *output, struct gl_output_state *go,
 	return 1;
 }
 
-void vm_output_init(struct weston_output *output)
-{
-	output->disable_planes++;
-}
-
 void pin_bo(struct gl_renderer *gr, void *buf, struct vm_buffer_info *vb)
 {
 	int ret;
@@ -406,9 +396,7 @@ void pin_bo(struct gl_renderer *gr, void *buf, struct vm_buffer_info *vb)
 		return;
 	}
 
-	if(gl_renderer_interface.vm_dbg) {
-		weston_log("Pinned ggtt_offset = 0x%lX\n", vb->ggtt_offset);
-	}
+	//weston_log("Pinned ggtt_offset = 0x%lX\n", vb->ggtt_offset);
 }
 
 
