@@ -1186,6 +1186,10 @@ drm_backend_output_configure(struct wl_listener *listener, void *data)
 	}
 	free(s);
 
+	weston_config_section_get_bool(section, "enable_surface_share",
+				       &output->enable_surface_share,
+				       0);
+
 	if (api->set_mode(output, mode, modeline) < 0) {
 		weston_log("Cannot configure an output using weston_drm_output_api.\n");
 		free(modeline);
