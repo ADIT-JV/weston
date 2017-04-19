@@ -513,7 +513,7 @@ transmitter_la_LDFLAGS = -module -avoid-version
 transmitter_la_CFLAGS =				\
 	$(COMPOSITOR_CFLAGS)			\
 	$(AM_CFLAGS)				\
-	-I$(DESTDIR)$(includedir)/waltham
+	$(WALTHAM_CFLAGS)
 transmitter_la_LIBADD = $(COMPOSITOR_LIBS) \
 			-lwaltham
 transmitter_la_SOURCES =			\

@@ -543,6 +543,18 @@ AC_ARG_ENABLE(surface-remoting,
               AS_HELP_STRING([--enable-surface-remoting],
                              [support for surface remoting over network]),,
 	      enable_surface_remoting=no)
+if test "x$enable_surface_remoting" != "xno"; then
+	PKG_CHECK_MODULES(WALTHAM,
+			  waltham >= 0.1.0,
+			  have_waltham=yes,
+			  have_waltham=no)
+	if test "x$have_waltham" = "xno" -a "x$enable_surface_remoting" = "xyes"; then
+	  AC_MSG_ERROR([surface_remoting support explicitly requested, but waltham couldn't be found])
+	fi
+	if test "x$have_waltham" = "xyes"; then
+	     enable_surface_remoting=yes
+	fi
+fi
 AM_CONDITIONAL(ENABLE_SURFACE_REMOTING, test "x$enable_surface_remoting" = "xyes")
 
 
