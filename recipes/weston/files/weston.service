@@ -9,12 +9,12 @@ DefaultDependencies=no
 Type=notify
 Environment=XDG_RUNTIME_DIR=/tmp
 WatchdogSec=0
-ExecStart=/usr/bin/weston --modules=systemd-notify.so
+ExecStart=/usr/bin/weston --tty=1 --modules=systemd-notify.so
 Nice=-20
 UMask=0017
 User=system
 # primary group graphics to create wayland socket with graphics user
 Group=graphics
-SupplementaryGroups=graphics drm input adit_errmem_log
+SupplementaryGroups=graphics drm tty input adit_errmem_log
 [Install]
 WantedBy=multi-user.target
