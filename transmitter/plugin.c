@@ -164,6 +164,18 @@ static const struct wthp_buffer_listener buffer_listener = {
 };
 
 static void
+surface_render_complete(struct wthp_callback *wthp_callback, uint32_t callback_data)
+{
+        /* Currently it is fake implementation */
+        weston_log("get callback done\n");
+}
+
+static const struct wthp_callback_listener callback_listener = {
+        surface_render_complete
+};
+
+
+static void
 transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 {
 	struct weston_transmitter *txr = txs->remote->transmitter;
@@ -188,6 +200,7 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 	struct weston_compositor *comp = surf->compositor;
 	int32_t stride, data_sz;
 	void *data;
+	struct wthp_callback *frame;
 
 	weston_log("width %d height %d\n", surf->width, surf->height);
 	stride = surf->width * (PIXMAN_FORMAT_BPP(comp->read_format) / 8);
@@ -213,6 +226,7 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 	wthp_surface_attach(txs->wthp_surf, txs->wthp_buf, txs->attach_dx, txs->attach_dy);
 	wthp_surface_damage(txs->wthp_surf, txs->attach_dx, txs->attach_dy, surf->width, surf->height);
 	wthp_surface_commit(txs->wthp_surf);
+	//wthp_callback_set_listener(wthp_surface_frame(txs->wthp_surf), &callback_listener, txs);
 
 	wth_connection_flush(txr->display->connection);
 
@@ -272,7 +286,9 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 	if (!txr->display->compositor)
 		weston_log("txr->compositor is NULL\n");
 	wthp_surface_destroy(txs->wthp_surf);
-
+	ivi_surface_free(txs->ivi_surface);
+	ivi_surface_destroy(txs->ivi_surface);
+	
 	/* In case called from destroy_transmitter() */
 	txs->remote = NULL;
 }
@@ -517,9 +533,8 @@ registry_handle_global(struct wthp_registry *registry,
 		       uint32_t version)
 {
 	struct waltham_display *dpy = wth_object_get_user_data((struct wth_object *)registry);
-
-	printf("got global %d: '%s' version '%d'\n",
-	name, interface, version);
+	
+	printf("got global %d: '%s' version '%d'\n",name, interface, version);
 
 	if (strcmp(interface, "wthp_compositor") == 0) {
 		assert(!dpy->compositor); 
@@ -529,14 +544,13 @@ registry_handle_global(struct wthp_registry *registry,
 		assert(!dpy->blob_factory); 
 		dpy->blob_factory = (struct wthp_blob_factory *)wthp_registry_bind(registry, name, interface, 1);
 		/* has no events to handle */
-#if 0
+
 	} else if (strcmp(interface, "wthp_seat") == 0) {
 		assert(!dpy->seat); 
 		dpy->seat = (struct wthp_seat *)wthp_registry_bind(registry, name, interface, 1);
-	else if (strcmp(interface, "ivi_application") == 0) {
-		assert(!dpy->application);
+	} else if (strcmp(interface, "ivi_application") == 0) {
+	        assert(!dpy->application);
 		dpy->application = (struct ivi_application *)wthp_registry_bind(registry, name, interface, 1);
-#endif
 	}
 }
 
@@ -939,10 +953,32 @@ static void
 transmitter_surface_set_ivi_id(struct weston_transmitter_surface *txs,
 			       uint32_t ivi_id)
 {
+        struct weston_transmitter *txr = txs->remote->transmitter;
+	struct waltham_display *dpy = txr->display;
+	
 	assert(txs->surface);
 	if (!txs->surface)
 		return;
+	weston_log("ID %d\n", ivi_id);
+	if(!txs)
+	  weston_log("no content in transmitter_surface\n");
+	if(!txs->remote)
+	  weston_log("no content in transmitter_surface_remote\n");
+	if(!dpy)
+	  weston_log("no content in waltham_display\n");
+	if(!dpy->compositor)
+	  weston_log("no content in compositor object\n");
+	if(!dpy->seat)
+	  weston_log("no content in seat object\n");
 
+	if(!dpy->application)
+	  weston_log("no content in ivi-application object\n");
+	txs->ivi_surface = ivi_application_surface_create(dpy->application,
+							  ivi_id,  txs->wthp_surf);
+	if(!txs->ivi_surface){
+	  weston_log("Failed to create txs->ivi_surf\n");
+	}
+         
 	weston_log("%s(%p, %#x)\n", __func__, txs->surface, ivi_id);
 }
 

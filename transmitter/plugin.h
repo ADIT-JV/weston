@@ -39,7 +39,7 @@
 
 #include <waltham-client.h>
 
-struct walthma_display;
+struct waltham_display;
 
 /* epoll structure */
 struct watch { 
@@ -62,7 +62,8 @@ struct waltham_display {
 
 	struct wthp_compositor *compositor;
 	struct wthp_blob_factory *blob_factory;
-//	struct wthp_seat *seat;
+	struct wthp_seat *seat;
+        struct ivi_application *application;
 	struct wtimer *fiddle_timer;
 };
 
@@ -98,6 +99,7 @@ struct weston_transmitter_remote {
 	struct wl_event_source *conn_timer; /* fake */
 };
 
+
 struct weston_transmitter_surface {
 	struct weston_transmitter_remote *remote;
 	struct wl_list link; /* weston_transmitter_remote::surface_list */
@@ -128,6 +130,8 @@ struct weston_transmitter_surface {
 	struct wthp_surface *wthp_surf;
 	struct wthp_blob_factory *wthp_blob;
 	struct wthp_buffer *wthp_buf;
+        struct ivi_surface *ivi_surface;
+        struct ivi_application *ivi_application;
 //	struct wthp_pointer *wthp_pointer;
 };
 
