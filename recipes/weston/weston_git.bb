@@ -59,6 +59,7 @@ EXTRA_OECONF_append = " \
   --enable-systemd-notify \
   --enable-setuid-install \
   --disable-rdp-compositor \
+  WAYLAND_PROTOCOLS_SYSROOT_DIR=${STAGING_DIR}/${MACHINE} \
 "
 
 EXTRA_OECONF_append += "${@bb.utils.contains('DISTRO_FEATURES', 'x11', 'WESTON_NATIVE_BACKEND=x11-backend.so', '', d)}"
