@@ -154,8 +154,7 @@ buffer_send_complete(struct wthp_buffer *b, uint32_t serial)
 	weston_log("wth_buffer.send_complete(%d)\n", serial);
 	struct weston_transmitter_surface *txs =
 		wth_object_get_user_data((struct wth_object *)b);
-
-	frame_callback_handler(txs);
+	//frame_callback_handler(txs);
 	wthp_buffer_destroy(b);
 }
 
@@ -164,10 +163,23 @@ static const struct wthp_buffer_listener buffer_listener = {
 };
 
 static void
-surface_render_complete(struct wthp_callback *wthp_callback, uint32_t callback_data)
+surface_render_complete(struct wthp_callback *wthp_cb, uint32_t serial)
 {
-        /* Currently it is fake implementation */
-        weston_log("get callback done\n");
+        weston_log("wth_callback.surface_render_complete(%d)\n", serial);
+	struct weston_transmitter_surface *txs;
+	struct weston_frame_callback *cb, *cnext;
+	struct weston_compositor *compositor;
+	uint32_t frame_time;
+
+	txs = wth_object_get_user_data((struct wth_object *)wthp_cb);
+	compositor = txs->remote->transmitter->compositor;
+	frame_time = weston_compositor_get_time();
+	wl_list_for_each_safe(cb, cnext, &txs->frame_callback_list, link) {
+	        wl_callback_send_done(cb->resource, frame_time);
+		wl_resource_destroy(cb->resource);
+	}
+
+	wthp_callback_free(wthp_cb);
 }
 
 static const struct wthp_callback_listener callback_listener = {
@@ -179,7 +191,7 @@ static void
 transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 {
 	struct weston_transmitter *txr = txs->remote->transmitter;
-
+	struct wthp_callback *cb;
 	fprintf(stderr, "transmitter_surface_gather_state %p\n", txs); fflush(stderr);
 	weston_log("Transmitter: update surface %p (%d, %d), %d cb\n",
 		   txs->surface, txs->attach_dx, txs->attach_dy,
@@ -200,7 +212,6 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 	struct weston_compositor *comp = surf->compositor;
 	int32_t stride, data_sz;
 	void *data;
-	struct wthp_callback *frame;
 
 	weston_log("width %d height %d\n", surf->width, surf->height);
 	stride = surf->width * (PIXMAN_FORMAT_BPP(comp->read_format) / 8);
@@ -210,9 +221,8 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 	data_sz = stride * surf->height;
 	weston_log("data_sz = %d\n", data_sz);
 
-	weston_surface_copy_content(surf, data,
-				    data_sz, 0, 0, surf->width, surf->height);
-
+	/*weston_surface_copy_content(surf, data, data_sz, 0, 0, surf->width, surf->height);*/
+	/* fake sending buffer */
 	txs->wthp_buf = wthp_blob_factory_create_buffer(txr->display->blob_factory,
 							data_sz,
 							data,
@@ -222,11 +232,12 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 							PIXMAN_FORMAT_BPP(comp->read_format));
 
 	wthp_buffer_set_listener(txs->wthp_buf, &buffer_listener, txs);
+	cb = wthp_surface_frame(txs->wthp_surf);
+	wthp_callback_set_listener(cb, &callback_listener, txs);
 
 	wthp_surface_attach(txs->wthp_surf, txs->wthp_buf, txs->attach_dx, txs->attach_dy);
 	wthp_surface_damage(txs->wthp_surf, txs->attach_dx, txs->attach_dy, surf->width, surf->height);
 	wthp_surface_commit(txs->wthp_surf);
-	//wthp_callback_set_listener(wthp_surface_frame(txs->wthp_surf), &callback_listener, txs);
 
 	wth_connection_flush(txr->display->connection);
 
@@ -241,7 +252,7 @@ transmitter_surface_apply_state(struct wl_listener *listener, void *data)
 	struct weston_transmitter_surface *txs =
 		container_of(listener, struct weston_transmitter_surface,
 			     apply_state_listener);
-
+	weston_log("get signal and apply state\n");
 	assert(data == NULL);
 
 	transmitter_surface_gather_state(txs);
@@ -259,7 +270,7 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 {
 	struct weston_frame_callback *framecb, *cnext;
 	struct weston_transmitter *txr;
-
+	weston_log("surface zombify\n");
 	/* may be called multiple times */
 	if (!txs->surface)
 		return;
@@ -286,9 +297,8 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 	if (!txr->display->compositor)
 		weston_log("txr->compositor is NULL\n");
 	wthp_surface_destroy(txs->wthp_surf);
-	ivi_surface_free(txs->ivi_surface);
 	ivi_surface_destroy(txs->ivi_surface);
-	
+
 	/* In case called from destroy_transmitter() */
 	txs->remote = NULL;
 }
@@ -544,7 +554,6 @@ registry_handle_global(struct wthp_registry *registry,
 		assert(!dpy->blob_factory); 
 		dpy->blob_factory = (struct wthp_blob_factory *)wthp_registry_bind(registry, name, interface, 1);
 		/* has no events to handle */
-
 	} else if (strcmp(interface, "wthp_seat") == 0) {
 		assert(!dpy->seat); 
 		dpy->seat = (struct wthp_seat *)wthp_registry_bind(registry, name, interface, 1);
@@ -726,10 +735,8 @@ static const struct wth_display_listener not_here_listener = {
 };
 
 static int
-waltham_client_init(struct waltham_display *dpy)
+waltham_client_init(struct waltham_display *dpy, char *server_address)
 {
-	char *server_address;
-
 	if (!dpy)
 		return -1;
 
@@ -739,11 +746,9 @@ waltham_client_init(struct waltham_display *dpy)
 		return -1;
 	}
 
-	/* TODO:
+	/*
 	 * get server_address from controller (adrress is set to weston.ini)
 	 */
-	server_address = getenv("SERVER_ADDRESS");
-
 	if (server_address)
 		dpy->connection = wth_connect_to_server(server_address, "34400");
 	else
@@ -830,7 +835,7 @@ transmitter_connect_to_remote(struct weston_transmitter *txr,
 	if (!txr->display)
 		return NULL;
 
-	ret = waltham_client_init(txr->display);
+	ret = waltham_client_init(txr->display, remote->addr);
 	if (ret < 0) {
 		weston_log("Fatal: Transmitter waltham connecting failed.\n");
 		return NULL;
