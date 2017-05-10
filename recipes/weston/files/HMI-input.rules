@@ -1,2 +1,0 @@
-ATTRS{name}=="TPK*", ENV{WL_SEAT}="default", ENV{WL_OUTPUT}="HDMI-A-1"
-ATTRS{name}=="eGalax*", ENV{WL_SEAT}="default", ENV{WL_OUTPUT}="HDMI-A-1"
