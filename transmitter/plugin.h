@@ -65,6 +65,7 @@ struct waltham_display {
 	struct wthp_seat *seat;
         struct ivi_application *application;
 	struct wtimer *fiddle_timer;
+        char *server_addr;
 };
 
 /* a timerfd based timer */
@@ -91,12 +92,16 @@ struct weston_transmitter_remote {
 
 	enum weston_transmitter_connection_status status;
 	struct wl_signal connection_status_signal;
+        struct wl_signal conn_establish_signal;
 
 	struct wl_list output_list; /* weston_transmitter_output::link */
 	struct wl_list surface_list; /* weston_transmitter_surface::link */
 	struct wl_list seat_list; /* weston_transmitter_seat::link */
 
+        struct wl_listener establish_listener;
+
 	struct wl_event_source *conn_timer; /* fake */
+        struct wl_event_source *establish_timer; /* for establish connection */
 };
 
 
@@ -132,7 +137,7 @@ struct weston_transmitter_surface {
 	struct wthp_buffer *wthp_buf;
         struct ivi_surface *ivi_surface;
         struct ivi_application *ivi_application;
-//	struct wthp_pointer *wthp_pointer;
+  //	struct wthp_pointer *wthp_pointer;
 };
 
 struct weston_transmitter_output_info {
