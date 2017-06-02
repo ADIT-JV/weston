@@ -129,6 +129,50 @@ static const struct weston_pointer_grab_interface pointer_grab_impl = {
 	pointer_cancel_grab_handler,
 };
 
+static void
+touch_grab_down_handler(struct weston_touch_grab *grab,
+			uint32_t time,
+			int touch_id,
+			wl_fixed_t x,
+			wl_fixed_t y)
+{
+}
+
+static void
+touch_grab_up_handler(struct weston_touch_grab *grab,
+		      uint32_t time,
+		      int touch_id)
+{
+}
+
+static void
+touch_grab_motion_handler(struct weston_touch_grab *grab,
+			  uint32_t time,
+			  int touch_id,
+			  wl_fixed_t x,
+			  wl_fixed_t y)
+{
+}
+
+static void
+touch_grab_frame_handler(struct weston_touch_grab *grab)
+{
+}
+
+static void
+touch_grab_cancel_handler(struct weston_touch_grab *grab)
+{
+}
+
+static const struct weston_touch_grab_interface touch_grab_impl = {
+	touch_grab_down_handler,
+	touch_grab_up_handler,
+	touch_grab_motion_handler,
+	touch_grab_frame_handler,
+	touch_grab_cancel_handler,
+};
+
+
 /* The different ways to get pointer focus on a remoted surface:
  *
  * 1. Transmitter seat has pointer. The client has wl_pointer. Transmitter
@@ -486,6 +530,127 @@ transmitter_seat_pointer_axis_discrete(struct weston_transmitter_seat *seat,
 	assert(!"TODO");
 }
 
+static void
+transmitter_seat_create_touch(struct weston_transmitter_seat *seat)
+{
+	struct weston_touch *touch;
+
+	seat->touch_focus = NULL;
+	weston_seat_init_touch(&seat->base);
+
+	touch = weston_seat_get_touch(&seat->base);
+
+	touch->default_grab.interface = &touch_grab_impl;
+
+	weston_log("Transmitter created touch=%p for seat %p\n",
+		   touch, &seat->base);
+}
+
+static void
+transmitter_seat_touch_down (struct weston_transmitter_seat *seat,
+			     uint32_t serial,
+			     uint32_t time,
+			     struct weston_transmitter_surface *txs,
+			     int32_t touch_id,
+			     wl_fixed_t x,
+			     wl_fixed_t y)
+{
+	struct weston_touch *touch;
+	struct wl_resource *resource = NULL;
+	struct wl_resource *surface_resource;
+
+	touch = weston_seat_get_touch(&seat->base);
+	assert(touch);
+
+	assert(txs->surface);
+	surface_resource = txs->surface->resource;
+
+	seat->touch_focus = txs;
+
+	wl_resource_for_each(resource, &touch->resource_list) {
+		if (wl_resource_get_client(resource) == wl_resource_get_client(surface_resource)) {
+			wl_touch_send_down(resource, serial, time,
+					   surface_resource,
+					   touch_id, x, y);
+		}
+	}
+}
+
+static void
+transmitter_seat_touch_up (struct weston_transmitter_seat *seat,
+			   uint32_t serial,
+			   uint32_t time,
+			   int32_t touch_id)
+{
+	struct weston_touch *touch;
+	struct wl_resource *resource = NULL;
+
+	touch = weston_seat_get_touch(&seat->base);
+	assert(touch);
+
+	wl_resource_for_each(resource, &touch->resource_list) {
+		if (wl_resource_get_client(resource) ==
+		    wl_resource_get_client(seat->touch_focus->surface->resource)) {
+			wl_touch_send_up(resource, serial, time, touch_id);
+		}
+	}
+}
+
+static void
+transmitter_seat_touch_motion (struct weston_transmitter_seat *seat,
+			       uint32_t time,
+			       int32_t touch_id,
+			       wl_fixed_t x,
+			       wl_fixed_t y)
+{
+	struct weston_touch *touch;
+	struct wl_resource *resource = NULL;
+
+	touch = weston_seat_get_touch(&seat->base);
+	assert(touch);
+
+	wl_resource_for_each(resource, &touch->resource_list) {
+		if (wl_resource_get_client(resource) ==
+		    wl_resource_get_client(seat->touch_focus->surface->resource)) {
+			wl_touch_send_motion(resource, time, touch_id, x, y);
+		}
+	}
+}
+
+static void
+transmitter_seat_touch_frame (struct weston_transmitter_seat *seat)
+{
+	struct weston_touch *touch;
+	struct wl_resource *resource = NULL;
+
+	touch = weston_seat_get_touch(&seat->base);
+	assert(touch);
+
+	wl_resource_for_each(resource, &touch->resource_list) {
+		if (wl_resource_get_client(resource) ==
+		    wl_resource_get_client(seat->touch_focus->surface->resource)) {
+			wl_touch_send_frame(resource);
+		}
+	}
+}
+
+static void
+transmitter_seat_touch_cancel (struct weston_transmitter_seat *seat)
+{
+	struct weston_touch *touch;
+	struct wl_resource *resource = NULL;
+
+	touch = weston_seat_get_touch(&seat->base);
+	assert(touch);
+
+	wl_resource_for_each(resource, &touch->resource_list) {
+		if (wl_resource_get_client(resource) ==
+		    wl_resource_get_client(seat->touch_focus->surface->resource)) {
+			wl_touch_send_cancel(resource);
+		}
+	}
+}
+
 static char *
 make_seat_name(struct weston_transmitter_remote *remote, const char *name)
 {
@@ -664,6 +829,111 @@ static const struct wthp_pointer_listener pointer_listener = {
 	pointer_handle_axis_discrete
 };
 
+static void
+touch_handle_down (struct wthp_touch * wthp_touch,
+		   uint32_t serial,
+		   uint32_t time,
+		   struct wthp_surface * surface,
+		   int32_t id,
+		   wth_fixed_t x,
+		   wth_fixed_t y)
+{
+	struct waltham_display *dpy =
+		wth_object_get_user_data((struct wth_object *)wthp_touch);
+	struct weston_transmitter_remote *remote = dpy->remote;
+	struct wl_list *seat_list = &remote->seat_list;
+	struct weston_transmitter_seat *seat;
+	struct weston_transmitter_surface *txs;
+
+	seat = container_of(seat_list->next,
+			    struct weston_transmitter_seat, link);
+
+	wl_list_for_each(txs, &remote->surface_list, link)
+	{
+		if (txs->wthp_surf == surface) {
+			transmitter_seat_touch_down(seat, serial, time,
+						    txs, id, x, y);
+		}
+	}
+}
+
+static void
+touch_handle_up (struct wthp_touch * wthp_touch,
+		 uint32_t serial,
+		 uint32_t time,
+		 int32_t id)
+{
+	struct waltham_display *dpy =
+		wth_object_get_user_data((struct wth_object *)wthp_touch);
+	struct weston_transmitter_remote *remote = dpy->remote;
+	struct wl_list *seat_list = &remote->seat_list;
+	struct weston_transmitter_seat *seat;
+
+	seat = container_of(seat_list->next,
+			    struct weston_transmitter_seat, link);
+
+	transmitter_seat_touch_up(seat, serial, time, id);
+}
+
+static void
+touch_handle_motion (struct wthp_touch * wthp_touch,
+		     uint32_t time,
+		     int32_t id,
+		     wth_fixed_t x,
+		     wth_fixed_t y)
+{
+	struct waltham_display *dpy =
+		wth_object_get_user_data((struct wth_object *)wthp_touch);
+	struct weston_transmitter_remote *remote = dpy->remote;
+	struct wl_list *seat_list = &remote->seat_list;
+	struct weston_transmitter_seat *seat;
+
+	seat = container_of(seat_list->next,
+			    struct weston_transmitter_seat, link);
+
+	transmitter_seat_touch_motion(seat, time, id, x, y);
+}
+
+
+static void
+touch_handle_frame (struct wthp_touch * wthp_touch)
+{
+	struct waltham_display *dpy =
+		wth_object_get_user_data((struct wth_object *)wthp_touch);
+	struct weston_transmitter_remote *remote = dpy->remote;
+	struct wl_list *seat_list = &remote->seat_list;
+	struct weston_transmitter_seat *seat;
+
+	seat = container_of(seat_list->next,
+			    struct weston_transmitter_seat, link);
+
+	transmitter_seat_touch_frame(seat);
+}
+
+static void
+touch_handle_cancel (struct wthp_touch * wthp_touch)
+{
+	struct waltham_display *dpy =
+		wth_object_get_user_data((struct wth_object *)wthp_touch);
+	struct weston_transmitter_remote *remote = dpy->remote;
+	struct wl_list *seat_list = &remote->seat_list;
+	struct weston_transmitter_seat *seat;
+
+	seat = container_of(seat_list->next,
+			    struct weston_transmitter_seat, link);
+
+	transmitter_seat_touch_cancel(seat);
+}
+
+
+static const struct wthp_touch_listener touch_listener = {
+	touch_handle_down,
+	touch_handle_up,
+	touch_handle_motion,
+	touch_handle_frame,
+	touch_handle_cancel
+};
+
 void
 seat_capabilities(struct wthp_seat *wthp_seat,
 		  enum wthp_seat_capability caps)
@@ -677,6 +947,12 @@ seat_capabilities(struct wthp_seat *wthp_seat,
 		weston_log("WTHP_SEAT_CAPABILITY_POINTER\n");
 		dpy->pointer = wthp_seat_get_pointer(dpy->seat);
 		wthp_pointer_set_listener(dpy->pointer, &pointer_listener, dpy);
+	}
+	if ((caps & WTHP_SEAT_CAPABILITY_TOUCH) && !dpy->touch)
+	{
+		weston_log("WTHP_SEAT_CAPABILITY_TOUCH\n");
+		dpy->touch = wthp_seat_get_touch(dpy->seat);
+		wthp_touch_set_listener(dpy->touch, &touch_listener, dpy);
 	}
 }
 
@@ -723,6 +999,7 @@ transmitter_remote_create_seat(struct weston_transmitter_remote *remote)
 
 	/* XXX: mirror remote capabilities */
 	transmitter_seat_create_pointer(seat);
+	transmitter_seat_create_touch(seat);
 
 	wl_list_insert(&remote->seat_list, &seat->link);
 
