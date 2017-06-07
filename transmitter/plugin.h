@@ -201,7 +201,7 @@ struct weston_transmitter_output {
 };
 
 struct weston_transmitter_seat {
-	struct weston_seat base;
+	struct weston_seat *base;
 	struct wl_list link;
 
 	/* pointer */
