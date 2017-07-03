@@ -158,6 +158,7 @@ struct drm_output {
 	struct drm_edid edid;
 	drmModePropertyPtr dpms_prop;
 	uint32_t gbm_format;
+	uint32_t disable_planes;
 
 	enum dpms_enum dpms;
 
