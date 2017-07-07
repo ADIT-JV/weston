@@ -737,6 +737,8 @@ struct weston_renderer {
 	/* Surface sharing additions */
 	void (*fill_surf_name)(struct weston_surface *surface, int len,
 			char *surf_name);
+	void (*finish_frame)(struct weston_output *output,
+			struct weston_compositor *ec);
 };
 
 enum weston_capability {

@@ -3079,6 +3079,8 @@ gl_renderer_create_pbuffer_surface(struct gl_renderer *gr) {
 	return 0;
 }
 
+static void gl_finish_frame(struct weston_output *output, struct weston_compositor *ec);
+
 static int
 gl_renderer_display_create(struct weston_compositor *ec, EGLenum platform,
 	void *native_window, const EGLint *platform_attribs,
@@ -3105,6 +3107,7 @@ gl_renderer_display_create(struct weston_compositor *ec, EGLenum platform,
 	gr->base.attach = gl_renderer_attach;
 	gr->base.surface_set_color = gl_renderer_surface_set_color;
 	gr->base.destroy = gl_renderer_destroy;
+	gr->base.finish_frame = gl_finish_frame;
 	gr->base.surface_get_content_size =
 		gl_renderer_surface_get_content_size;
 	gr->base.surface_copy_content = gl_renderer_surface_copy_content;
@@ -3456,6 +3459,14 @@ static void vm_table_clean(struct gl_renderer *gr)
 	}
 }
 
+static void gl_finish_frame(struct weston_output *output, struct weston_compositor *ec)
+{
+	struct gl_renderer *gr = get_renderer(ec);
+
+
+	vm_table_clean(gr);
+}
+
 void buffer_destroy(struct gr_buffer_ref *gr_buf)
 {
 	if(gr_buf->cleanup_required) {
@@ -3603,11 +3614,6 @@ int vm_table_draw(struct weston_output *output, struct gl_output_state *go,
 		0.0, 1.0,                           /**/  0.0, 1.0,
 		sizeof(struct vm_buffer_info), 1.0, /**/  1.0, 1.0,
 	};
-
-	/*
-	 * Clear the old table before filling it again.
-	 */
-	vm_table_clean(gr);
 
 	/*
 	 * eglQuerySurface has to be called in order for the back
