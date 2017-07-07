@@ -2205,6 +2205,8 @@ parse_gbm_format(const char *s, uint32_t default_value, uint32_t *gbm_format)
 		*gbm_format = GBM_FORMAT_RGB565;
 	else if (strcmp(s, "xrgb2101010") == 0)
 		*gbm_format = GBM_FORMAT_XRGB2101010;
+	else if (strcmp(s, "argb8888") == 0)
+		*gbm_format = GBM_FORMAT_ARGB8888;
 	else {
 		weston_log("fatal: unrecognized pixel format: %s\n", s);
 		ret = -1;
