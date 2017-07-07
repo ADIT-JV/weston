@@ -1112,6 +1112,7 @@ gl_renderer_repaint_output(struct weston_output *output,
 	 */
 	if (output->enable_surface_share) {
 		vm_table_draw(output, go, gr);
+		ret = eglSwapBuffers(gr->egl_display, go->egl_surface);
 		return;
 	}
 
