@@ -32,6 +32,7 @@
  */
 
 #include <stdint.h>
+#include <wayland-client.h>
 
 #include "compositor.h"
 #include "transmitter_api.h"
@@ -147,8 +148,21 @@ struct weston_transmitter_output_info {
 struct weston_transmitter_output {
 	struct weston_output base;
 
+	struct {
+		bool draw_initial_frame;
+		struct wl_surface *surface;
+		struct wl_output *output;
+		struct wl_display *display;
+		int configure_width, configure_height;
+		bool wait_for_configure;
+	} parent;
+
 	struct weston_transmitter_remote *remote;
 	struct wl_list link; /* weston_transmitter_remote::output_list */
+
+	struct frame *frame;
+
+	struct wl_callback *frame_cb;
 };
 
 struct weston_transmitter_seat {

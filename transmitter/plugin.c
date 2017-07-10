@@ -933,6 +933,7 @@ static const struct weston_transmitter_api transmitter_api_impl = {
 	transmitter_surface_get_stream_status,
 	transmitter_surface_destroy,
 	transmitter_surface_configure,
+	transmitter_surface_gather_state,
 };
 
 static void

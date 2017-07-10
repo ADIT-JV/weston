@@ -68,6 +68,33 @@ to_transmitter_output(struct weston_output *base)
 	return container_of(base, struct weston_transmitter_output, base);
 }
 
+static void
+frame_done(void *data, struct wl_callback *callback, uint32_t time)
+{
+	struct weston_transmitter_output *output = data;
+	struct timespec ts;
+
+	assert(callback == output->frame_cb);
+	wl_callback_destroy(callback);
+	output->frame_cb = NULL;
+
+	/* XXX: use the presentation extension for proper timings */
+
+	/*
+	 * This is the fallback case, where Presentation extension is not
+	 * available from the parent compositor. We do not know the base for
+	 * 'time', so we cannot feed it to finish_frame(). Do the only thing
+	 * we can, and pretend finish_frame time is when we process this
+	 * event.
+	 */
+	weston_compositor_read_presentation_clock(output->base.compositor, &ts);
+	weston_output_finish_frame(&output->base, &ts, 0);
+}
+
+static const struct wl_callback_listener frame_listener = {
+	frame_done
+};
+
 static char *
 make_model(struct weston_transmitter_remote *remote, int name)
 {
@@ -149,6 +176,12 @@ static void
 transmitter_start_repaint_loop(struct weston_output *base)
 {
 	weston_log("%s(%s)\n", __func__, base->name);
+	struct weston_transmitter_output *output = to_transmitter_output(base);
+	
+	output->frame_cb = wl_surface_frame(output->parent.surface);
+	wl_callback_add_listener(output->frame_cb, &frame_listener, output);
+	wl_surface_commit(output->parent.surface);
+	wl_display_flush(output->parent.display);
 }
 
 static int
@@ -156,8 +189,18 @@ transmitter_output_repaint(struct weston_output *base,
 			   pixman_region32_t *damage)
 {
 	weston_log("%s(%s)\n", __func__, base->name);
+	struct weston_transmitter_output* output = to_transmitter_output(base);
+	struct weston_transmitter_remote* remote = output->remote;
+	struct weston_transmitter* txr = remote->transmitter;
+	struct weston_transmitter_api* transmitter_api = 
+		weston_get_transmitter_api(txr->compositor);
+	struct weston_transmitter_surface* txs =
+		container_of(remote, struct weston_transmitter_surface, 
+			     remote);
+	
+	transmitter_api->surface_gather_state(txs);
 
-	return -1;
+	return 0;
 }
 
 int
@@ -166,10 +209,19 @@ transmitter_remote_create_output(
 	const struct weston_transmitter_output_info *info)
 {
 	struct weston_transmitter_output *output;
+	struct weston_transmitter *txr = remote->transmitter;
 
 	output = zalloc(sizeof *output);
 	if (!output)
 		return -1;
+	output->parent.surface = 
+		wl_compositor_create_surface(txr->compositor);
+	if(!output->parent.surface)
+		return -1;
+	output->parent.display = wl_display_connect(NULL);
+	assert(output->parent.display);
+
+	output->parent.draw_initial_frame = true;
 
 	output->base.subpixel = info->subpixel;
 

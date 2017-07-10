@@ -191,6 +191,9 @@ struct weston_transmitter_api {
 	void
 	(*surface_configure)(struct weston_transmitter_surface *txs,
 			     int32_t dx, int32_t dy);
+
+	void
+	(*surface_gather_state)(struct weston_transmitter_surface *txs);
 };
 
 static inline const struct weston_transmitter_api *
