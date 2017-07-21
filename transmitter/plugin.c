@@ -443,8 +443,8 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 	txs->surface_destroy_listener.notify = transmitter_surface_destroyed;
 	wl_signal_add(&ws->destroy_signal, &txs->surface_destroy_listener);
 
-	txs->apply_state_listener.notify = transmitter_surface_apply_state;
-	wl_signal_add(&ws->apply_state_signal, &txs->apply_state_listener);
+	//txs->apply_state_listener.notify = transmitter_surface_apply_state;
+	//wl_signal_add(&ws->apply_state_signal, &txs->apply_state_listener);
 
 	wl_list_init(&txs->sync_output_destroy_listener.link);
 
@@ -458,7 +458,7 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 		weston_log("txr->compositor is NULL\n");
 	txs->wthp_surf = wthp_compositor_create_surface(txr->display->compositor);
 
-	fake_stream_opening(txs);
+	//fake_stream_opening(txs);
 
 	return txs;
 }
@@ -494,7 +494,6 @@ conn_timer_handler(void *data) /* fake */
 
 	wl_event_source_remove(remote->conn_timer);
 	remote->conn_timer = NULL;
-
 	/* Outputs and seats are dynamic, do not guarantee they are all
 	 * present when signalling connection status.
 	 */

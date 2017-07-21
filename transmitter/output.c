@@ -91,10 +91,6 @@ frame_done(void *data, struct wl_callback *callback, uint32_t time)
 	weston_output_finish_frame(&output->base, &ts, 0);
 }
 
-static const struct wl_callback_listener frame_listener = {
-	frame_done
-};
-
 static char *
 make_model(struct weston_transmitter_remote *remote, int name)
 {
@@ -172,16 +168,16 @@ transmitter_output_destroy_(struct weston_output *base)
 	transmitter_output_destroy(output);
 }
 
+
 static void
 transmitter_start_repaint_loop(struct weston_output *base)
 {
 	weston_log("%s(%s)\n", __func__, base->name);
+	struct timespec ts;
 	struct weston_transmitter_output *output = to_transmitter_output(base);
 	
-	output->frame_cb = wl_surface_frame(output->parent.surface);
-	wl_callback_add_listener(output->frame_cb, &frame_listener, output);
-	wl_surface_commit(output->parent.surface);
-	wl_display_flush(output->parent.display);
+	weston_compositor_read_presentation_clock(output->base.compositor, &ts);
+	weston_output_finish_frame(&output->base, &ts, 0);
 }
 
 static int
@@ -194,12 +190,44 @@ transmitter_output_repaint(struct weston_output *base,
 	struct weston_transmitter* txr = remote->transmitter;
 	struct weston_transmitter_api* transmitter_api = 
 		weston_get_transmitter_api(txr->compositor);
-	struct weston_transmitter_surface* txs =
-		container_of(remote, struct weston_transmitter_surface, 
-			     remote);
-	
-	transmitter_api->surface_gather_state(txs);
+	struct weston_transmitter_surface* txs;
+	struct weston_compositor *compositor = base->compositor;
+	struct weston_view *view;
 
+	/* 
+	 * Pick up weston_view in transmitter_output and check weston_view's surface
+	 * If the surface hasn't been conbined to weston_transmitter_surface, 
+	 * then call push_to_remote.
+	 * If the surface has already been combined, call gather_state.
+	 */
+	/*wl_list_for_each(view, &compositor->view_list, link) {
+		weston_log("wl_list_for_each weston_view...\n");
+		if(view->surface->output == &output->base) {
+			weston_log("This view is contained on this output\n");
+		}
+	}*/
+
+	wl_list_for_each(txs, &remote->surface_list, link)
+	{
+		weston_log("test log::surface on transmitter output\n");
+		transmitter_api->surface_gather_state(txs);
+	}
+	transmitter_start_repaint_loop(base);
+
+	return 0;
+}
+static void
+transmitter_output_enable(struct weston_output *base)
+{
+	weston_log("%s(%s)\n", __func__, base->name);
+	struct weston_transmitter_output *output = to_transmitter_output(base);
+	int ret = 0;
+	
+	output->base.assign_planes = NULL;
+	output->base.set_backlight = NULL;
+	output->base.set_dpms = NULL;
+	output->base.switch_mode = NULL;
+	
 	return 0;
 }
 
@@ -214,12 +242,6 @@ transmitter_remote_create_output(
 	output = zalloc(sizeof *output);
 	if (!output)
 		return -1;
-	output->parent.surface = 
-		wl_compositor_create_surface(txr->compositor);
-	if(!output->parent.surface)
-		return -1;
-	output->parent.display = wl_display_connect(NULL);
-	assert(output->parent.display);
 
 	output->parent.draw_initial_frame = true;
 
@@ -229,14 +251,15 @@ transmitter_remote_create_output(
 	output->base.make = strdup(WESTON_TRANSMITTER_OUTPUT_MAKE);
 	output->base.model = make_model(remote, 1);
 	output->base.serial_number = strdup("0");
-
+	/* x and y is fake value */
 	wl_list_init(&output->base.mode_list);
 	if (make_mode_list(&output->base.mode_list, info) < 0)
 		goto fail;
 
 	output->base.current_mode = get_current_mode(&output->base.mode_list);
+	output->base.height = output->base.current_mode->height;
+	output->base.width = output->base.current_mode->width;
 	/* WL_OUTPUT_MODE_CURRENT already set */
-
 	weston_output_init(&output->base, remote->transmitter->compositor);
 
 	/*
@@ -252,7 +275,7 @@ transmitter_remote_create_output(
 	 * for this output, since we must not involve input device management
 	 * or color management or any kind of local management.
 	 */
-
+	output->base.enable = transmitter_output_enable;
 	output->base.start_repaint_loop = transmitter_start_repaint_loop;
 	output->base.repaint = transmitter_output_repaint;
 	output->base.destroy = transmitter_output_destroy_;
@@ -264,10 +287,14 @@ transmitter_remote_create_output(
 
 	output->base.native_mode = output->base.current_mode;
 	output->base.native_scale = output->base.current_scale;
+	output->base.scale = 1;
+	output->base.transform = WL_OUTPUT_TRANSFORM_NORMAL;
 
 	output->remote = remote;
 	wl_list_insert(&remote->output_list, &output->link);
+	weston_log("Not calling weston_compositor_add_pending_output\n");
 
+	weston_output_enable(&output->base);
 	weston_log("Transmitter created output '%s': %s, %s, %s\n",
 		   output->base.name, output->base.make, output->base.model,
 		   output->base.serial_number);
