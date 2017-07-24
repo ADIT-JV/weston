@@ -2100,6 +2100,7 @@ ivi_layout_surface_remoting_start(struct ivi_layout_surface *ivisurf,
 	struct ivi_layout *il = ivisurf->layout;
 	struct weston_transmitter *txr = il->transmitter;
 
+/*
 	if (!wl_list_empty(&ivisurf->order.link)) {
 		weston_log("Error in %s: surface id %#x is on a layer.\n",
 			   __func__, ivisurf->id_surface);
@@ -2111,6 +2112,7 @@ ivi_layout_surface_remoting_start(struct ivi_layout_surface *ivisurf,
 
 	if (ivisurf->txs)
 		return -2;
+*/
 
 	ivisurf->stream_listener.notify = surface_stream_status_handler;
 	ivisurf->txs =

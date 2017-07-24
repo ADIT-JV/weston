@@ -87,7 +87,6 @@ struct weston_transmitter {
 struct weston_transmitter_remote {
 	struct weston_transmitter *transmitter;
 	struct wl_list link;
-
 	char *addr;
 
 	enum weston_transmitter_connection_status status;
@@ -102,6 +101,7 @@ struct weston_transmitter_remote {
 
 	struct wl_event_source *conn_timer; /* fake */
         struct wl_event_source *establish_timer; /* for establish connection */
+	struct wl_event_source *retry_timer; /* for retry connection */
 };
 
 
@@ -137,7 +137,6 @@ struct weston_transmitter_surface {
 	struct wthp_buffer *wthp_buf;
         struct ivi_surface *ivi_surface;
         struct ivi_application *ivi_application;
-  //	struct wthp_pointer *wthp_pointer;
 };
 
 struct weston_transmitter_output_info {
