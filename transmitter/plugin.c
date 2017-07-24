@@ -285,7 +285,7 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 	txs->surface = NULL;
 
 	wl_list_remove(&txs->sync_output_destroy_listener.link);
-	wl_list_remove(&txs->apply_state_listener.link);
+//	wl_list_remove(&txs->apply_state_listener.link);
 
 	if (txs->map_timer)
 		wl_event_source_remove(txs->map_timer);
@@ -469,8 +469,8 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 		txs->surface_destroy_listener.notify = transmitter_surface_destroyed;
 		wl_signal_add(&ws->destroy_signal, &txs->surface_destroy_listener);
 
-		txs->apply_state_listener.notify = transmitter_surface_apply_state;
-		wl_signal_add(&ws->apply_state_signal, &txs->apply_state_listener);
+//		txs->apply_state_listener.notify = transmitter_surface_apply_state;
+//		wl_signal_add(&ws->apply_state_signal, &txs->apply_state_listener);
 
 		wl_list_init(&txs->sync_output_destroy_listener.link);
 
