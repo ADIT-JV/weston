@@ -157,7 +157,8 @@ buffer_send_complete(struct wthp_buffer *b, uint32_t serial)
 	/*struct weston_transmitter_surface *txs =
 	  wth_object_get_user_data((struct wth_object *)b);*/
 	//frame_callback_handler(txs);
-	wthp_buffer_destroy(b);
+	if (b)
+		wthp_buffer_destroy(b);
 }
 
 static const struct wthp_buffer_listener buffer_listener = {
@@ -204,6 +205,17 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 	wl_list_insert_list(&txs->feedback_list, &txs->surface->feedback_list);
 	wl_list_init(&txs->surface->feedback_list);
 
+	if (txs->remote->status != WESTON_TRANSMITTER_CONNECTION_READY || !txs->wthp_surf) {
+		struct weston_frame_callback *cb, *cnext;
+		uint32_t frame_time;
+
+		frame_time = weston_compositor_get_time();
+		wl_list_for_each_safe(cb, cnext, &txs->frame_callback_list, link) {
+			wl_callback_send_done(cb->resource, frame_time);
+			wl_resource_destroy(cb->resource);
+		}
+		return;
+	}
 
 	/* TODO: transmit surface state to remote */
 
@@ -299,8 +311,10 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 	txr = txs->remote->transmitter;
 	if (!txr->display->compositor)
 		weston_log("txr->compositor is NULL\n");
-	wthp_surface_destroy(txs->wthp_surf);
-	ivi_surface_destroy(txs->ivi_surface);
+	if (txs->wthp_surf)
+		wthp_surface_destroy(txs->wthp_surf);
+	if (txs->ivi_surface)
+		ivi_surface_destroy(txs->ivi_surface);
 
 	/* In case called from destroy_transmitter() */
 	txs->remote = NULL;
@@ -482,9 +496,12 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 	txr = txs->remote->transmitter;
 	if (!txr->display->compositor)
 		weston_log("txr->compositor is NULL\n");
-	txs->wthp_surf = wthp_compositor_create_surface(txr->display->compositor);
+	if (!txs->wthp_surf) {
+		weston_log("txs->wthp_surf is NULL\n");
+		txs->wthp_surf = wthp_compositor_create_surface(txr->display->compositor);
+//		fake_stream_opening(txs);
+	}
 
-	//fake_stream_opening(txs);
 
 	return txs;
 }
@@ -606,7 +623,8 @@ registry_handle_global_remove(struct wthp_registry *wthp_registry,
 			      uint32_t name)
 {
 	printf("global %d removed\n", name);
-	wthp_registry_free(wthp_registry);
+	if (wthp_registry)
+		wthp_registry_free(wthp_registry);
 }
 
 static const struct wthp_registry_listener registry_listener = {
@@ -866,6 +884,8 @@ disconnect_surface(struct weston_transmitter_remote *remote)
 	{
 		free(txs->ivi_surface);
 		free(txs->wthp_surf);
+		txs->ivi_surface = NULL;
+		txs->wthp_surf = NULL;
 	}
 }
 
