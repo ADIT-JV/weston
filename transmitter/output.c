@@ -200,18 +200,19 @@ transmitter_output_repaint(struct weston_output *base,
 	 * then call push_to_remote.
 	 * If the surface has already been combined, call gather_state.
 	 */
-	/*wl_list_for_each(view, &compositor->view_list, link) {
+	wl_list_for_each(view, &compositor->view_list, link) {
 		weston_log("wl_list_for_each weston_view...\n");
-		if(view->surface->output == &output->base) {
+		if (view->surface->output == &output->base) {
 			weston_log("This view is contained on this output\n");
+			wl_list_for_each(txs, &remote->surface_list, link) {
+				if (txs->surface == view->surface) {
+					weston_log("test log::surface on transmitter output\n");
+					transmitter_api->surface_gather_state(txs);
+				}
+			}
 		}
-	}*/
-
-	wl_list_for_each(txs, &remote->surface_list, link)
-	{
-		weston_log("test log::surface on transmitter output\n");
-		transmitter_api->surface_gather_state(txs);
 	}
+
 	transmitter_start_repaint_loop(base);
 
 	return 0;
