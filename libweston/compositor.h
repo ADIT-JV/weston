@@ -220,6 +220,7 @@ struct weston_output {
 
 	bool enabled;
 	int scale;
+	bool enable_surface_share;
 
 	int (*enable)(struct weston_output *output);
 	int (*disable)(struct weston_output *output);
@@ -732,6 +733,12 @@ struct weston_renderer {
 	/** See weston_compositor_import_dmabuf() */
 	bool (*import_dmabuf)(struct weston_compositor *ec,
 			      struct linux_dmabuf_buffer *buffer);
+
+	/* Surface sharing additions */
+	void (*fill_surf_name)(struct weston_surface *surface, int len,
+			char *surf_name);
+	void (*finish_frame)(struct weston_output *output,
+			struct weston_compositor *ec);
 };
 
 enum weston_capability {
@@ -790,6 +797,10 @@ struct weston_backend_config {
 struct weston_backend {
 	void (*destroy)(struct weston_compositor *compositor);
 	void (*restore)(struct weston_compositor *compositor);
+
+	/* Surface sharing additions */
+	int (*get_bpp)(struct weston_compositor *compositor,
+		       struct weston_buffer *buffer);
 };
 
 struct weston_desktop_xwayland;
@@ -905,6 +916,7 @@ struct weston_buffer {
 	int32_t width, height;
 	uint32_t busy_count;
 	int y_inverted;
+	void *priv_buffer;
 };
 
 struct weston_buffer_reference {
