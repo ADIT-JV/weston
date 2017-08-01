@@ -2882,6 +2882,34 @@ drm_destroy(struct weston_compositor *ec)
 	free(b);
 }
 
+static int drm_get_bpp(struct weston_compositor *ec, struct weston_buffer *buffer)
+{
+	struct drm_backend *b = to_drm_backend(ec);
+	struct gbm_bo *bo;
+	uint32_t format;
+
+	bo = gbm_bo_import(b->gbm, GBM_BO_IMPORT_WL_BUFFER, buffer->resource, GBM_BO_USE_SCANOUT);
+	if (!bo) {
+		return 0;
+	}
+
+	format = gbm_bo_get_format(bo);
+	gbm_bo_destroy(bo);
+	switch(format)
+	{
+		case GBM_FORMAT_ARGB8888:
+		case GBM_FORMAT_XRGB8888:
+		case GBM_FORMAT_XRGB2101010:
+			return 32;
+
+		case GBM_FORMAT_RGB565:
+			return 16;
+
+		default:
+			return 16;
+	}
+}
+
 static void
 session_notify(struct wl_listener *listener, void *data)
 {
@@ -3337,6 +3365,7 @@ drm_backend_create(struct weston_compositor *compositor,
 
 	b->base.destroy = drm_destroy;
 	b->base.restore = drm_restore;
+	b->base.get_bpp = drm_get_bpp;
 
 	weston_setup_vt_switch_bindings(compositor);
 
