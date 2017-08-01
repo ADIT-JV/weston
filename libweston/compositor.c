@@ -2343,6 +2343,10 @@ output_repaint_timer_handler(void *data)
 	struct weston_compositor *compositor = output->compositor;
 	int ret;
 
+	if(compositor->renderer->finish_frame) {
+		compositor->renderer->finish_frame(output, compositor);
+	}
+
 	/* If we're sleeping, drop the repaint machinery entirely; we will
 	 * explicitly repaint all outputs when we come back. */
 	if (compositor->state == WESTON_COMPOSITOR_SLEEPING ||
