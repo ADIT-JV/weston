@@ -208,8 +208,11 @@ transmitter_output_repaint(struct weston_output *base,
 				if (txs->surface == view->surface) {
 					weston_log("test log::surface on transmitter output\n");
 					transmitter_api->surface_gather_state(txs);
+					break;
 				}
 			}
+			weston_log("test log::add new remote surface \n");
+			transmitter_api->surface_push_to_remote(view->surface, remote, NULL);
 		}
 	}
 

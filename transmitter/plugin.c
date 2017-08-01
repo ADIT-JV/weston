@@ -477,7 +477,8 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 
 		txs->status = WESTON_TRANSMITTER_STREAM_INITIALIZING;
 		wl_signal_init(&txs->stream_status_signal);
-		wl_signal_add(&txs->stream_status_signal, stream_status);
+		if (stream_status)
+			wl_signal_add(&txs->stream_status_signal, stream_status);
 
 		txs->surface = ws;
 		txs->surface_destroy_listener.notify = transmitter_surface_destroyed;
@@ -1112,11 +1113,58 @@ static const struct weston_transmitter_ivi_api transmitter_ivi_api_impl = {
 	transmitter_surface_set_resize_callback,
 };
 
+static void
+connection_status_handler(struct wl_listener *listener, void *data)
+{
+	struct weston_transmitter *txr = data;
+//	struct ivishell *shell = wl_container_of(listener, shell, connection_listener);
+	struct weston_transmitter_remote *remote = data;
+	enum weston_transmitter_connection_status status;
+
+
+//	status = remote_get_status(remote);
+//	weston_log("shell: connection status %d\n", status);
+
+	if(status == WESTON_TRANSMITTER_CONNECTION_READY) {
+#if 0
+		wl_list_for_each_reverse(ivisurf, &shell->list_surface, link) {
+			surface_id = shell->interface->get_id_of_surface(ivisurf->layout_surface);
+			layout_surface = lyt->get_surface_from_id(surface_id);
+			if (!layout_surface)
+				continue;
+			ivisurf = get_surface(&shell->list_surface, layout_surface);
+			if (!ivisurf)
+				continue;
+			weston_log("Ready to surface remoting %d\n", surface_id);
+			start_remoting(shell, ivisurf);
+		}
+#endif
+	}
+}
+
+
+static void
+transmitter_post_init(void *data)
+{
+	struct weston_transmitter *txr = data;
+	struct weston_transmitter_api* transmitter_api =
+		weston_get_transmitter_api(txr->compositor);
+
+	if (!txr) {
+		weston_log("Transmitter disabled\n");
+	} else {
+		weston_log("Transmitter enabled.\n");
+		txr->connection_listener.notify = connection_status_handler;
+		transmitter_connect_to_remote(txr, "192.168.2.31", &txr->connection_listener);
+	}
+}
+
 WL_EXPORT int
 wet_module_init(struct weston_compositor *compositor, int *argc, char *argv[])
 {
 	struct weston_transmitter *txr;
 	int ret;
+	struct wl_event_loop *loop = NULL;
 
 	txr = zalloc(sizeof *txr);
 	if (!txr)
@@ -1149,6 +1197,10 @@ wet_module_init(struct weston_compositor *compositor, int *argc, char *argv[])
 	}
 
 	weston_log("Transmitter initialized.\n");
+
+	loop = wl_display_get_event_loop(compositor->wl_display);
+	wl_event_loop_add_idle(loop, transmitter_post_init, txr);
+
 
 	return 0;
 

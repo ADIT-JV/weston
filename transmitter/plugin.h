@@ -82,6 +82,10 @@ struct weston_transmitter {
 	struct wl_list remote_list; /* transmitter_remote::link */
 
 	struct waltham_display *display; /* waltham */
+
+	struct wl_listener connection_listener;
+	struct wl_listener stream_listener;
+
 };
 
 struct weston_transmitter_remote {
