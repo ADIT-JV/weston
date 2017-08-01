@@ -158,6 +158,7 @@ struct drm_output {
 	struct drm_edid edid;
 	drmModePropertyPtr dpms_prop;
 	uint32_t gbm_format;
+	uint32_t disable_planes;
 
 	enum dpms_enum dpms;
 
@@ -2424,6 +2425,9 @@ drm_output_enable(struct weston_output *base)
 		weston_log("Failed to init output gl state\n");
 		goto err_free;
 	}
+
+	if (output->base.enable_surface_share)
+		output->disable_planes++;
 
 	if (output->backlight) {
 		weston_log("Initialized backlight, device %s\n",
