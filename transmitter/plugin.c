@@ -1142,6 +1142,33 @@ connection_status_handler(struct wl_listener *listener, void *data)
 	}
 }
 
+static void
+transmitter_get_server_config(struct weston_transmitter *txr,
+			      char **model, char **addr)
+{
+	struct weston_config *config = wet_get_config(txr->compositor);
+	struct weston_config_section *section;
+
+	weston_log("Connect to remote\n");
+	section = weston_config_get_section(config, "remote", NULL, NULL);
+
+	const char *name = NULL;
+	while (weston_config_next_section(config, &section, &name)) {
+		if (0 == strcmp(name, "remote-output")) {
+			if (0 != weston_config_section_get_string(section, "output-name",
+								  model, 0))
+				continue;
+
+			if (0 != weston_config_section_get_string(section, "server-address",
+								  addr, 0))
+				continue;
+
+			weston_log("--------- remote-output conf --------\n");
+			weston_log("output-model   : %s\n", *model);
+			weston_log("server-address : %s\n", *addr);
+		}
+	} 
+}
 
 static void
 transmitter_post_init(void *data)
@@ -1149,13 +1176,16 @@ transmitter_post_init(void *data)
 	struct weston_transmitter *txr = data;
 	struct weston_transmitter_api* transmitter_api =
 		weston_get_transmitter_api(txr->compositor);
+	char *model = NULL;
+	char *addr = NULL;
 
 	if (!txr) {
 		weston_log("Transmitter disabled\n");
 	} else {
 		weston_log("Transmitter enabled.\n");
+		transmitter_get_server_config(txr, &model, &addr);
 		txr->connection_listener.notify = connection_status_handler;
-		transmitter_connect_to_remote(txr, "192.168.2.31", &txr->connection_listener);
+		transmitter_connect_to_remote(txr, addr, &txr->connection_listener);
 	}
 }
 
