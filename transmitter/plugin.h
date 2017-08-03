@@ -65,7 +65,10 @@ struct waltham_display {
 	struct wthp_seat *seat;
         struct ivi_application *application;
 	struct wtimer *fiddle_timer;
-        char *server_addr;
+
+	struct weston_transmitter_remote *remote;
+        char *addr;
+        char *port;
 };
 
 /* a timerfd based timer */
@@ -81,8 +84,6 @@ struct weston_transmitter {
 
 	struct wl_list remote_list; /* transmitter_remote::link */
 
-	struct waltham_display *display; /* waltham */
-
 	struct wl_listener connection_listener;
 	struct wl_listener stream_listener;
 
@@ -91,7 +92,9 @@ struct weston_transmitter {
 struct weston_transmitter_remote {
 	struct weston_transmitter *transmitter;
 	struct wl_list link;
+	char *model;
 	char *addr;
+	char *port;
 
 	enum weston_transmitter_connection_status status;
 	struct wl_signal connection_status_signal;
@@ -106,6 +109,8 @@ struct weston_transmitter_remote {
 	struct wl_event_source *conn_timer; /* fake */
         struct wl_event_source *establish_timer; /* for establish connection */
 	struct wl_event_source *retry_timer; /* for retry connection */
+
+	struct waltham_display *display; /* waltham */
 };
 
 

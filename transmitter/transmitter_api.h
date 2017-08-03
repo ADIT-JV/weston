@@ -90,7 +90,6 @@ struct weston_transmitter_api {
 	 * Connect to a remote server via Transmitter.
 	 *
 	 * \param txr The Transmitter context.
-	 * \param addr Address of the remote server.
 	 * \param status Listener to inform of connection status changes.
 	 * \return A handle to the remote connection, or NULL on failure.
 	 *
@@ -102,11 +101,9 @@ struct weston_transmitter_api {
 	 * returned by this function. Use remote_get_status() to fetch the
 	 * current status.
 	 *
-	 * The address argument is a string in the form "host:port".
 	 */
 	struct weston_transmitter_remote *
 	(*connect_to_remote)(struct weston_transmitter *txr,
-			     const char *addr,
 			     struct wl_listener *status);
 
 	/**
