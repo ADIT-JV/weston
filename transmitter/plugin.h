@@ -87,6 +87,7 @@ struct weston_transmitter {
 	struct wl_listener connection_listener;
 	struct wl_listener stream_listener;
 
+	int epoll_fd;
 };
 
 struct weston_transmitter_remote {
