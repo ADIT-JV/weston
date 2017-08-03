@@ -96,7 +96,7 @@ make_model(struct weston_transmitter_remote *remote, int name)
 {
 	char *str;
 
-	if (asprintf(&str, "transmitter-%s-%d", remote->addr, name) < 0)
+	if (asprintf(&str, "transmitter-%s:%s-%d", remote->addr, remote->port, name) < 0)
 		return NULL;
 
 	return str;
@@ -200,9 +200,9 @@ transmitter_output_repaint(struct weston_output *base,
 	 * then call push_to_remote.
 	 * If the surface has already been combined, call gather_state.
 	 */
-	wl_list_for_each(view, &compositor->view_list, link) {
-		weston_log("wl_list_for_each weston_view...\n");
+	wl_list_for_each_reverse(view, &compositor->view_list, link) {
 		bool found = false;
+		weston_log("wl_list_for_each weston_view... %s:%s\n", remote->addr, remote->port);
 		if (view->surface->output == &output->base) {
 			weston_log("This view is contained on this output\n");
 			wl_list_for_each(txs, &remote->surface_list, link) {
@@ -240,9 +240,8 @@ transmitter_output_enable(struct weston_output *base)
 }
 
 int
-transmitter_remote_create_output(
-	struct weston_transmitter_remote *remote,
-	const struct weston_transmitter_output_info *info)
+transmitter_remote_create_output(struct weston_transmitter_remote *remote,
+				 const struct weston_transmitter_output_info *info)
 {
 	struct weston_transmitter_output *output;
 	struct weston_transmitter *txr = remote->transmitter;
