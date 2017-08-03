@@ -202,17 +202,21 @@ transmitter_output_repaint(struct weston_output *base,
 	 */
 	wl_list_for_each(view, &compositor->view_list, link) {
 		weston_log("wl_list_for_each weston_view...\n");
+		bool found = false;
 		if (view->surface->output == &output->base) {
 			weston_log("This view is contained on this output\n");
 			wl_list_for_each(txs, &remote->surface_list, link) {
 				if (txs->surface == view->surface) {
 					weston_log("test log::surface on transmitter output\n");
 					transmitter_api->surface_gather_state(txs);
+					found = true;
 					break;
 				}
 			}
-			weston_log("test log::add new remote surface \n");
-			transmitter_api->surface_push_to_remote(view->surface, remote, NULL);
+			if (!found) {
+				weston_log("test log::add new remote surface \n");
+				transmitter_api->surface_push_to_remote(view->surface, remote, NULL);
+			}
 		}
 	}
 
