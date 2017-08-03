@@ -461,8 +461,13 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 				   struct weston_transmitter_remote *remote,
 				   struct wl_listener *stream_status)
 {
-	weston_log("transmitter_surface_push_to_remote\n");
+	weston_log("transmitter_surface_push_to_remote %s:%s\n", remote->addr, remote->port);
 	struct weston_transmitter_surface *txs;
+
+	if (remote->status != WESTON_TRANSMITTER_CONNECTION_READY)
+	{
+		return NULL;
+	}
 
 	txs = transmitter_surface_get(ws);
 	if (!txs) {
@@ -500,7 +505,6 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 		txs->wthp_surf = wthp_compositor_create_surface(remote->display->compositor);
 //		fake_stream_opening(txs);
 	}
-
 
 	return txs;
 }

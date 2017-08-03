@@ -208,6 +208,9 @@ transmitter_output_repaint(struct weston_output *base,
 			wl_list_for_each(txs, &remote->surface_list, link) {
 				if (txs->surface == view->surface) {
 					weston_log("test log::surface on transmitter output\n");
+					if (!txs->wthp_surf)
+						transmitter_api->surface_push_to_remote(view->surface,
+											remote, NULL);
 					transmitter_api->surface_gather_state(txs);
 					found = true;
 					break;
