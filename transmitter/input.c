@@ -1209,11 +1209,23 @@ transmitter_remote_create_seat(struct weston_transmitter_remote *remote)
 	if (!name)
 		goto fail;
 
-	wl_list_for_each(weston_seat, &remote->transmitter->compositor->seat_list, link) {
-		weston_log("Transmitter: weston_seat %p\n", weston_seat);
+
+	if (wl_list_empty(&remote->transmitter->compositor->seat_list)) {
+		weston_seat = zalloc(sizeof *weston_seat);
+		if (!weston_seat)
+			goto fail;
+
+		weston_seat_init(weston_seat, remote->transmitter->compositor, name);
 		seat->base = weston_seat;
+		weston_log("Transmitter created seat=%p \n", &seat->base);
+	} else {
+		wl_list_for_each(weston_seat, &remote->transmitter->compositor->seat_list, link) {
+			weston_log("Transmitter weston_seat %p\n", weston_seat);
+			seat->base = weston_seat;
+		}
 	}
 
+	free(name);
 #if 0
 	weston_seat_init(&seat->base, remote->transmitter->compositor, name);
 	free(name);
