@@ -41,6 +41,21 @@
 
 struct waltham_display;
 
+enum wthp_seat_capability {
+	/**
+	 * the seat has pointer devices
+	 */
+	WTHP_SEAT_CAPABILITY_POINTER = 1,
+	/**
+	 * the seat has one or more keyboards
+	 */
+	WTHP_SEAT_CAPABILITY_KEYBOARD = 2,
+	/**
+	 * the seat has touch devices
+	 */
+	WTHP_SEAT_CAPABILITY_TOUCH = 4,
+};
+
 /* epoll structure */
 struct watch { 
 	struct waltham_display *display;
@@ -63,12 +78,13 @@ struct waltham_display {
 	struct wthp_compositor *compositor;
 	struct wthp_blob_factory *blob_factory;
 	struct wthp_seat *seat;
+	struct wthp_pointer *pointer;
         struct ivi_application *application;
 	struct wtimer *fiddle_timer;
 
 	struct weston_transmitter_remote *remote;
-        char *addr;
-        char *port;
+	char *addr;
+	char *port;
 };
 
 /* a timerfd based timer */
@@ -278,6 +294,15 @@ transmitter_seat_pointer_axis_discrete(struct weston_transmitter_seat *seat,
 int
 transmitter_seat_fake_pointer_input(struct weston_transmitter_seat *seat,
 				    struct weston_transmitter_surface *txs);
+
+void
+seat_capabilities(struct wthp_seat *wthp_seat,
+                  enum wthp_seat_capability caps);
+
+static const struct wthp_seat_listener seat_listener = {
+	seat_capabilities,
+	NULL
+};
 
 
 #endif /* WESTON_TRANSMITTER_PLUGIN_H */

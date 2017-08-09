@@ -608,6 +608,7 @@ registry_handle_global(struct wthp_registry *registry,
 	} else if (strcmp(interface, "wthp_seat") == 0) {
 		assert(!dpy->seat); 
 		dpy->seat = (struct wthp_seat *)wthp_registry_bind(registry, name, interface, 1);
+		wthp_seat_set_listener(dpy->seat, &seat_listener, dpy);
 	} else if (strcmp(interface, "ivi_application") == 0) {
 	        assert(!dpy->application);
 		dpy->application = (struct ivi_application *)wthp_registry_bind(registry, name, interface, 1);

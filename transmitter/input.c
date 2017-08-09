@@ -401,7 +401,27 @@ transmitter_seat_pointer_button(struct weston_transmitter_seat *seat,
 				uint32_t button,
 				uint32_t state)
 {
-	assert(!"TODO");
+	struct weston_pointer *pointer;
+	struct wl_list *focus_resource_list;
+	struct wl_resource *resource;
+	struct weston_transmitter_surface *txs;
+
+	pointer = weston_seat_get_pointer(&seat->base);
+	assert(pointer);
+
+	if (!pointer->focus_client)
+		return;
+
+	txs = seat->pointer_focus;
+	if (txs)
+		assert(wl_resource_get_client(txs->surface->resource) ==
+		       pointer->focus_client->client);
+
+	focus_resource_list = &pointer->focus_client->pointer_resources;
+	wl_resource_for_each(resource, focus_resource_list) {
+		wl_pointer_send_button(resource, serial, time,
+				       button, state);
+        }
 }
 
 void
@@ -410,7 +430,27 @@ transmitter_seat_pointer_axis(struct weston_transmitter_seat *seat,
 			      uint32_t axis,
 			      wl_fixed_t value)
 {
-	assert(!"TODO");
+	struct weston_pointer *pointer;
+	struct wl_list *focus_resource_list;
+	struct wl_resource *resource;
+	struct weston_transmitter_surface *txs;
+
+	pointer = weston_seat_get_pointer(&seat->base);
+	assert(pointer);
+
+	if (!pointer->focus_client)
+		return;
+
+	txs = seat->pointer_focus;
+	if (txs)
+		assert(wl_resource_get_client(txs->surface->resource) ==
+		       pointer->focus_client->client);
+
+	focus_resource_list = &pointer->focus_client->pointer_resources;
+	wl_resource_for_each(resource, focus_resource_list) {
+		wl_pointer_send_axis(resource, time,
+				     axis, value);
+	}
 }
 
 void
@@ -473,6 +513,171 @@ transmitter_seat_destroy(struct weston_transmitter_seat *seat)
 		wl_event_source_remove(seat->pointer_timer);
 
 	free(seat);
+}
+
+static void
+pointer_handle_enter(struct wthp_pointer *wthp_pointer,
+		     uint32_t serial,
+		     struct wthp_surface *surface,
+		     wth_fixed_t surface_x,
+		     wth_fixed_t surface_y)
+{
+	struct waltham_display *dpy =
+		wth_object_get_user_data((struct wth_object *)wthp_pointer);
+	struct weston_transmitter_remote *remote = dpy->remote;
+	struct wl_list *seat_list = &remote->seat_list;
+	struct weston_transmitter_seat *seat;
+	struct weston_transmitter_surface *txs;
+
+	seat = container_of(seat_list->next,
+			    struct weston_transmitter_seat, link);
+
+	wl_list_for_each(txs, &remote->surface_list, link)
+	{
+		if (txs->wthp_surf == surface) {
+			transmitter_seat_pointer_enter(seat, serial, txs,
+						       surface_x, surface_y);
+		}
+	}
+}
+
+static void
+pointer_handle_leave(struct wthp_pointer *wthp_pointer,
+		     uint32_t serial,
+		     struct wthp_surface *surface)
+{
+	struct waltham_display *dpy =
+		wth_object_get_user_data((struct wth_object *)wthp_pointer);
+	struct weston_transmitter_remote *remote = dpy->remote;
+	struct wl_list *seat_list = &remote->seat_list;
+	struct weston_transmitter_seat *seat;
+	struct weston_transmitter_surface *txs;
+
+	seat = container_of(seat_list->next,
+			    struct weston_transmitter_seat, link);
+
+	wl_list_for_each(txs, &remote->surface_list, link)
+	{
+		if (txs->wthp_surf == surface) {
+			transmitter_seat_pointer_leave(seat, serial, txs);
+		}
+	}
+}
+
+static void
+pointer_handle_motion(struct wthp_pointer *wthp_pointer,
+		      uint32_t time,
+		      wth_fixed_t surface_x,
+		      wth_fixed_t surface_y)
+{
+	struct waltham_display *dpy =
+		wth_object_get_user_data((struct wth_object *)wthp_pointer);
+	struct weston_transmitter_remote *remote = dpy->remote;
+	struct wl_list *seat_list = &remote->seat_list;
+	struct weston_transmitter_seat *seat;
+
+	seat = container_of(seat_list->next,
+			    struct weston_transmitter_seat, link);
+
+	transmitter_seat_pointer_motion(seat, time,
+					surface_x,
+					surface_y);
+}
+
+static void
+pointer_handle_button(struct wthp_pointer *wthp_pointer,
+		      uint32_t serial,
+		      uint32_t time,
+		      uint32_t button,
+		      uint32_t state)
+{
+	struct waltham_display *dpy =
+		wth_object_get_user_data((struct wth_object *)wthp_pointer);
+	struct weston_transmitter_remote *remote = dpy->remote;
+	struct wl_list *seat_list = &remote->seat_list;
+	struct weston_transmitter_seat *seat;
+
+	seat = container_of(seat_list->next,
+			    struct weston_transmitter_seat, link);
+
+	transmitter_seat_pointer_button(seat, serial,
+					time, button,
+					state);
+}
+
+static void
+pointer_handle_axis(struct wthp_pointer *wthp_pointer,
+		    uint32_t time,
+		    uint32_t axis, wth_fixed_t value)
+{
+	struct waltham_display *dpy =
+		wth_object_get_user_data((struct wth_object *)wthp_pointer);
+	struct weston_transmitter_remote *remote = dpy->remote;
+	struct wl_list *seat_list = &remote->seat_list;
+	struct weston_transmitter_seat *seat;
+
+	seat = container_of(seat_list->next,
+			    struct weston_transmitter_seat, link);
+
+	transmitter_seat_pointer_axis(seat, time,
+				      axis, value);
+}
+
+static void
+pointer_handle_frame(struct wthp_pointer *wthp_pointer)
+{
+	weston_log("pointer_handle_frame\n");
+}
+
+static void
+pointer_handle_axis_source(struct wthp_pointer *wthp_pointer,
+			   uint32_t axis_source)
+{
+	weston_log("pointer_handle_axis_source\n");
+}
+
+static void
+pointer_handle_axis_stop(struct wthp_pointer *wthp_pointer,
+			 uint32_t time,
+			 uint32_t axis)
+{
+	weston_log("pointer_handle_axis_stop\n");
+}
+
+static void
+pointer_handle_axis_discrete(struct wthp_pointer *wthp_pointer,
+			     uint32_t axis,
+			     int32_t discrete)
+{
+	weston_log("pointer_handle_axis_discrete\n");
+}
+
+static const struct wthp_pointer_listener pointer_listener = {
+	pointer_handle_enter,
+	pointer_handle_leave,
+	pointer_handle_motion,
+	pointer_handle_button,
+	pointer_handle_axis,
+	pointer_handle_frame,
+	pointer_handle_axis_source,
+	pointer_handle_axis_stop,
+	pointer_handle_axis_discrete
+};
+
+void
+seat_capabilities(struct wthp_seat *wthp_seat,
+		  enum wthp_seat_capability caps)
+{
+	struct waltham_display *dpy = wth_object_get_user_data((struct wth_object *)wthp_seat);
+
+	weston_log("seat_capabilities\n");
+
+	if ((caps & WTHP_SEAT_CAPABILITY_POINTER) && !dpy->pointer)
+	{
+		weston_log("WTHP_SEAT_CAPABILITY_POINTER\n");
+		dpy->pointer = wthp_seat_get_pointer(dpy->seat);
+		wthp_pointer_set_listener(dpy->pointer, &pointer_listener, dpy);
+	}
 }
 
 int
