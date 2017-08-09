@@ -412,7 +412,7 @@ map_timer_handler(void *data)
 		   txs->surface, txs->sync_output->name);
 
 	fake_frame_callback(txs);
-	fake_input(txs);
+//	fake_input(txs);
 
 	return 0;
 }
@@ -905,6 +905,10 @@ init_globals(struct waltham_display *dpy)
 	dpy->blob_factory = NULL;
 	dpy->seat = NULL;
 	dpy->application = NULL;
+	dpy->pointer = NULL;
+	dpy->keyboard = NULL;
+	dpy->touch = NULL;
+
 }
 
 static void

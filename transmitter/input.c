@@ -130,6 +130,35 @@ static const struct weston_pointer_grab_interface pointer_grab_impl = {
 };
 
 static void
+keyboard_grab_key(struct weston_keyboard_grab *grab,
+		  uint32_t time,
+		  uint32_t key,
+		  uint32_t state)
+{
+}
+
+static void
+keyboard_grab_modifiers(struct weston_keyboard_grab *grab,
+			uint32_t serial,
+			uint32_t mods_depressed,
+			uint32_t mods_latched,
+			uint32_t mods_locked,
+			uint32_t group)
+{
+}
+
+static void
+keyboard_grab_cancel(struct weston_keyboard_grab *grab)
+{
+}
+
+static const struct weston_keyboard_grab_interface keyborad_grab_impl = {
+	keyboard_grab_key,
+	keyboard_grab_modifiers,
+	keyboard_grab_cancel
+};
+
+static void
 touch_grab_down_handler(struct weston_touch_grab *grab,
 			uint32_t time,
 			int touch_id,
@@ -531,6 +560,100 @@ transmitter_seat_pointer_axis_discrete(struct weston_transmitter_seat *seat,
 }
 
 static void
+transmitter_seat_create_keyboard(struct weston_transmitter_seat *seat)
+{
+	struct weston_keyboard *keyboard;
+
+	seat->keyboard_focus = NULL;
+	weston_seat_init_keyboard(seat->base, NULL);
+
+	keyboard = weston_seat_get_keyboard(seat->base);
+
+	keyboard->default_grab.interface = &keyborad_grab_impl;
+
+	weston_log("Transmitter created keyboard=%p for seat %p\n",
+		   keyboard, seat->base);
+}
+
+static void
+transmitter_seat_keyboard_enter(struct weston_transmitter_seat *seat,
+				uint32_t serial,
+				struct weston_transmitter_surface *txs,
+				struct wl_array *keys)
+{
+	struct weston_keyboard *keyboard;
+	struct wl_resource *resource = NULL;
+	struct wl_resource *surface_resource;
+
+	keyboard = weston_seat_get_keyboard(seat->base);
+	assert(keyboard);
+
+	assert(txs->surface);
+	surface_resource = txs->surface->resource;
+
+	seat->keyboard_focus = txs;
+	wl_array_copy(&keyboard->keys, keys);
+
+	wl_resource_for_each(resource, &keyboard->resource_list) {
+		if (wl_resource_get_client(resource) == wl_resource_get_client(surface_resource)) {
+			wl_keyboard_send_enter(resource,
+					       serial,
+					       surface_resource,
+					       &keyboard->keys);
+		}
+	}
+}
+
+static void
+transmitter_seat_keyboard_leave(struct weston_transmitter_seat *seat,
+				uint32_t serial,
+				struct weston_transmitter_surface *txs)
+{
+	struct weston_keyboard *keyboard;
+	struct wl_resource *resource = NULL;
+	struct wl_resource *surface_resource;
+
+	keyboard = weston_seat_get_keyboard(seat->base);
+	assert(keyboard);
+
+	assert(txs->surface);
+	surface_resource = txs->surface->resource;
+
+	wl_resource_for_each(resource, &keyboard->resource_list) {
+		if (wl_resource_get_client(resource) == wl_resource_get_client(surface_resource)) {
+			wl_keyboard_send_leave(resource,
+					       serial,
+					       surface_resource);
+		}
+	}
+}
+
+static void
+transmitter_seat_keyboard_key(struct weston_transmitter_seat *seat,
+	uint32_t serial,
+	uint32_t time,
+	uint32_t key,
+	uint32_t state)
+{
+	struct weston_keyboard *keyboard;
+	struct wl_resource *resource = NULL;
+
+	keyboard = weston_seat_get_keyboard(seat->base);
+	assert(keyboard);
+
+	wl_resource_for_each(resource, &keyboard->resource_list) {
+		if (wl_resource_get_client(resource) ==
+		    wl_resource_get_client(seat->keyboard_focus->surface->resource)) {
+			wl_keyboard_send_key(resource,
+					     serial,
+					     time,
+					     key,
+					     state);
+		}
+	}
+}
+
+static void
 transmitter_seat_create_touch(struct weston_transmitter_seat *seat)
 {
 	struct weston_touch *touch;
@@ -832,6 +955,109 @@ static const struct wthp_pointer_listener pointer_listener = {
 };
 
 static void
+keyboard_handle_keymap(struct wthp_keyboard * wthp_keyboard,
+	uint32_t format,
+	uint32_t keymap_sz,
+	void * keymap)
+{
+	weston_log("keyboard_handle_keymap\n");
+}
+
+static void
+keyboard_handle_enter(struct wthp_keyboard *wthp_keyboard,
+	uint32_t serial,
+	struct wthp_surface *surface,
+	struct wth_array *keys)
+{
+	struct waltham_display *dpy =
+		wth_object_get_user_data((struct wth_object *)wthp_keyboard);
+	struct weston_transmitter_remote *remote = dpy->remote;
+	struct wl_list *seat_list = &remote->seat_list;
+	struct weston_transmitter_seat *seat;
+	struct weston_transmitter_surface *txs;
+
+	seat = container_of(seat_list->next,
+	struct weston_transmitter_seat, link);
+
+	wl_list_for_each(txs, &remote->surface_list, link)
+	{
+		if (txs->wthp_surf == surface) {
+			transmitter_seat_keyboard_enter(seat, serial, txs, keys);
+		}
+	}
+}
+
+static void
+keyboard_handle_leave(struct wthp_keyboard *wthp_keyboard,
+	uint32_t serial,
+	struct wthp_surface *surface)
+{
+	struct waltham_display *dpy =
+		wth_object_get_user_data((struct wth_object *)wthp_keyboard);
+	struct weston_transmitter_remote *remote = dpy->remote;
+	struct wl_list *seat_list = &remote->seat_list;
+	struct weston_transmitter_seat *seat;
+	struct weston_transmitter_surface *txs;
+
+	seat = container_of(seat_list->next,
+	struct weston_transmitter_seat, link);
+
+	wl_list_for_each(txs, &remote->surface_list, link)
+	{
+		if (txs->wthp_surf == surface) {
+			transmitter_seat_keyboard_leave(seat, serial, txs);
+		}
+	}
+}
+
+static void
+keyboard_handle_key(struct wthp_keyboard *wthp_keyboard,
+	uint32_t serial,
+	uint32_t time,
+	uint32_t key,
+	uint32_t state)
+{
+	struct waltham_display *dpy =
+		wth_object_get_user_data((struct wth_object *)wthp_keyboard);
+	struct weston_transmitter_remote *remote = dpy->remote;
+	struct wl_list *seat_list = &remote->seat_list;
+	struct weston_transmitter_seat *seat;
+
+	seat = container_of(seat_list->next,
+	struct weston_transmitter_seat, link);
+
+	transmitter_seat_keyboard_key(seat, serial, time, key, state);
+}
+
+static void
+keyboard_handle_modifiers(struct wthp_keyboard *wthp_keyboard,
+	uint32_t serial,
+	uint32_t mods_depressed,
+	uint32_t mods_latched,
+	uint32_t mods_locked,
+	uint32_t group)
+{
+	weston_log("keyboard_handle_modifiers\n");
+}
+
+static void
+keyboard_handle_repeat_info(struct wthp_keyboard *wthp_keyboard,
+	int32_t rate,
+	int32_t delay)
+{
+	weston_log("keyboard_handle_repeat_info\n");
+}
+
+static const struct wthp_keyboard_listener keyboard_listener = {
+	keyboard_handle_keymap,
+	keyboard_handle_enter,
+	keyboard_handle_leave,
+	keyboard_handle_key,
+	keyboard_handle_modifiers,
+	keyboard_handle_repeat_info
+};
+
+static void
 touch_handle_down (struct wthp_touch * wthp_touch,
 		   uint32_t serial,
 		   uint32_t time,
@@ -950,6 +1176,12 @@ seat_capabilities(struct wthp_seat *wthp_seat,
 		dpy->pointer = wthp_seat_get_pointer(dpy->seat);
 		wthp_pointer_set_listener(dpy->pointer, &pointer_listener, dpy);
 	}
+	if ((caps & WTHP_SEAT_CAPABILITY_KEYBOARD) && !dpy->keyboard)
+	{
+		weston_log("WTHP_SEAT_CAPABILITY_KEYBOARD\n");
+		dpy->keyboard = wthp_seat_get_keyboard(dpy->seat);
+		wthp_keyboard_set_listener(dpy->keyboard, &keyboard_listener, dpy);
+	}
 	if ((caps & WTHP_SEAT_CAPABILITY_TOUCH) && !dpy->touch)
 	{
 		weston_log("WTHP_SEAT_CAPABILITY_TOUCH\n");
@@ -1009,6 +1241,7 @@ transmitter_remote_create_seat(struct weston_transmitter_remote *remote)
 
 	/* XXX: mirror remote capabilities */
 	transmitter_seat_create_pointer(seat);
+	transmitter_seat_create_keyboard(seat);
 	transmitter_seat_create_touch(seat);
 
 	wl_list_insert(&remote->seat_list, &seat->link);

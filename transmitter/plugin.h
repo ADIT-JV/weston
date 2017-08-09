@@ -79,6 +79,7 @@ struct waltham_display {
 	struct wthp_blob_factory *blob_factory;
 	struct wthp_seat *seat;
 	struct wthp_pointer *pointer;
+	struct wthp_keyboard *keyboard;
 	struct wthp_touch *touch;
         struct ivi_application *application;
 	struct wtimer *fiddle_timer;
@@ -217,6 +218,7 @@ struct weston_transmitter_seat {
 	double pointer_phase; /* fake */
 
 	/* keyboard */
+	struct weston_transmitter_surface *keyboard_focus;
 
 	/* touch */
 	struct weston_transmitter_surface *touch_focus;
