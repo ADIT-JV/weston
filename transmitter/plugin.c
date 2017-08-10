@@ -198,12 +198,14 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 		   txs->surface, txs->attach_dx, txs->attach_dy,
 		   wl_list_length(&txs->surface->frame_callback_list));
 
+/*
 	wl_list_insert_list(&txs->frame_callback_list,
 			    &txs->surface->frame_callback_list);
 	wl_list_init(&txs->surface->frame_callback_list);
 
 	wl_list_insert_list(&txs->feedback_list, &txs->surface->feedback_list);
 	wl_list_init(&txs->surface->feedback_list);
+*/
 
 	if (txs->remote->status != WESTON_TRANSMITTER_CONNECTION_READY ||
 	    !txs->wthp_surf ||
@@ -276,6 +278,27 @@ transmitter_surface_apply_state(struct wl_listener *listener, void *data)
 //	fake_frame_callback(txs);
 }
 
+static void
+transmitter_surface_commit_signal(struct wl_listener *listener, void *data)
+{
+	struct weston_transmitter_surface *txs =
+		container_of(listener, struct weston_transmitter_surface,
+			     commit_listener);
+	struct weston_transmitter_remote *remote = txs->remote;
+	struct wthp_callback *cb;
+
+	weston_log("Transmitter: update surface %p (%d, %d), %d cb\n",
+		   txs->surface, txs->attach_dx, txs->attach_dy,
+		   wl_list_length(&txs->surface->frame_callback_list));
+
+	wl_list_insert_list(&txs->frame_callback_list,
+			    &txs->surface->frame_callback_list);
+	wl_list_init(&txs->surface->frame_callback_list);
+
+	wl_list_insert_list(&txs->feedback_list, &txs->surface->feedback_list);
+	wl_list_init(&txs->surface->feedback_list);
+}
+
 /** Mark the weston_transmitter_surface dead.
  *
  * Stop all remoting actions on this surface.
@@ -300,6 +323,7 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 
 	wl_list_remove(&txs->sync_output_destroy_listener.link);
 //	wl_list_remove(&txs->apply_state_listener.link);
+	wl_list_remove(&txs->commit_listener.link);
 
 	if (txs->map_timer)
 		wl_event_source_remove(txs->map_timer);
@@ -492,6 +516,9 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 
 //		txs->apply_state_listener.notify = transmitter_surface_apply_state;
 //		wl_signal_add(&ws->apply_state_signal, &txs->apply_state_listener);
+
+		txs->commit_listener.notify = transmitter_surface_commit_signal;
+		wl_signal_add(&ws->commit_signal, &txs->commit_listener);
 
 		wl_list_init(&txs->sync_output_destroy_listener.link);
 

@@ -144,6 +144,7 @@ struct weston_transmitter_surface {
 	struct weston_surface *surface;
 	struct wl_listener surface_destroy_listener;
 	struct wl_listener apply_state_listener;
+	struct wl_listener commit_listener;
 
 	weston_transmitter_ivi_resize_handler_t resize_handler;
 	void *resize_handler_data;
