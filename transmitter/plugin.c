@@ -205,7 +205,9 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 	wl_list_insert_list(&txs->feedback_list, &txs->surface->feedback_list);
 	wl_list_init(&txs->surface->feedback_list);
 
-	if (txs->remote->status != WESTON_TRANSMITTER_CONNECTION_READY || !txs->wthp_surf) {
+	if (txs->remote->status != WESTON_TRANSMITTER_CONNECTION_READY ||
+	    !txs->wthp_surf ||
+	    !remote->display->running ) {
 		struct weston_frame_callback *cb, *cnext;
 		uint32_t frame_time;
 
@@ -662,6 +664,9 @@ connection_handle_data(struct watch *w, uint32_t events)
 	if (events & EPOLLERR) {
 		weston_log("Connection errored out.\n");
 		dpy->running = false;
+		if (watch_ctl(&dpy->conn_watch, EPOLL_CTL_DEL, EPOLLIN | EPOLLOUT) < 0) {
+			return;
+		}
 
 		return;
 	}
