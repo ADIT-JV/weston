@@ -203,7 +203,7 @@ transmitter_output_repaint(struct weston_output *base,
 	wl_list_for_each_reverse(view, &compositor->view_list, link) {
 		bool found = false;
 		weston_log("wl_list_for_each weston_view... %s:%s\n", remote->addr, remote->port);
-		if (view->surface->output == &output->base) {
+		if (view->output == &output->base) {
 			weston_log("This view is contained on this output\n");
 			wl_list_for_each(txs, &remote->surface_list, link) {
 				if (txs->surface == view->surface) {
