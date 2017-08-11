@@ -180,6 +180,27 @@ transmitter_start_repaint_loop(struct weston_output *base)
 	weston_output_finish_frame(&output->base, &ts, 0);
 }
 
+static void *
+transmitter_reset_commit_signal(struct weston_transmitter_output *output)
+{
+	struct weston_transmitter_remote *remote = output->remote;
+	struct weston_transmitter_surface *txs;
+	struct weston_frame_callback *cb, *cnext;
+	uint32_t frame_time;
+
+	wl_list_for_each(txs, &remote->surface_list, link) {
+		if (txs->commit_listener.notify) {
+			frame_time = weston_compositor_get_time();
+			wl_list_for_each_safe(cb, cnext, &txs->frame_callback_list, link) {
+				wl_callback_send_done(cb->resource, frame_time);
+				wl_resource_destroy(cb->resource);
+			}
+			wl_list_remove(&txs->commit_listener.link);
+			txs->commit_listener.notify = NULL;
+		}
+	}
+}
+
 static int
 transmitter_output_repaint(struct weston_output *base,
 			   pixman_region32_t *damage)
@@ -193,6 +214,7 @@ transmitter_output_repaint(struct weston_output *base,
 	struct weston_transmitter_surface* txs;
 	struct weston_compositor *compositor = base->compositor;
 	struct weston_view *view;
+	bool found_outut = false;
 
 	/* 
 	 * Pick up weston_view in transmitter_output and check weston_view's surface
@@ -200,11 +222,15 @@ transmitter_output_repaint(struct weston_output *base,
 	 * then call push_to_remote.
 	 * If the surface has already been combined, call gather_state.
 	 */
+	if (wl_list_empty(&compositor->view_list))
+		goto out;
+
 	wl_list_for_each_reverse(view, &compositor->view_list, link) {
-		bool found = false;
+		bool found_surface = false;
 		weston_log("wl_list_for_each weston_view... %s:%s\n", remote->addr, remote->port);
 		if (view->output == &output->base) {
 			weston_log("This view is contained on this output\n");
+			found_outut = true;
 			wl_list_for_each(txs, &remote->surface_list, link) {
 				if (txs->surface == view->surface) {
 					weston_log("test log::surface on transmitter output\n");
@@ -212,20 +238,29 @@ transmitter_output_repaint(struct weston_output *base,
 						transmitter_api->surface_push_to_remote(view->surface,
 											remote, NULL);
 					transmitter_api->surface_gather_state(txs);
-					found = true;
+					found_surface = true;
 					break;
 				}
 			}
-			if (!found) {
+			if (!found_surface) {
 				weston_log("test log::add new remote surface \n");
 				transmitter_api->surface_push_to_remote(view->surface, remote, NULL);
 			}
 		}
 	}
+	if (!found_outut)
+		goto out;
 
 	transmitter_start_repaint_loop(base);
 
 	return 0;
+
+out:
+	transmitter_reset_commit_signal(output);
+	transmitter_start_repaint_loop(base);
+
+	return 0;
+
 }
 static void
 transmitter_output_enable(struct weston_output *base)
