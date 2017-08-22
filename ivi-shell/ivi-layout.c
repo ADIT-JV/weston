@@ -2245,6 +2245,25 @@ ivi_layout_surface_create(struct weston_surface *wl_surface,
 }
 
 static void
+surface_connected_handler(struct wl_listener *listener, void *data)
+{
+	struct ivi_layout *il =
+		wl_container_of(listener, il, connected_listener);
+	struct weston_transmitter_surface *txs = data;
+	struct weston_surface *ws;
+	struct ivi_layout_surface *ivisurf;
+
+	ws = il->txr_api->get_weston_surface(txs);
+
+	wl_list_for_each(ivisurf, &il->surface_list, link) {
+		if (ivisurf->surface == ws) {
+			il->txr_ivi_api->set_ivi_id(txs,
+						    ivisurf->id_surface);
+		}
+	}
+}
+
+static void
 ivi_layout_post_init(void *data)
 {
 	struct ivi_layout *il = data;
@@ -2263,6 +2282,9 @@ ivi_layout_post_init(void *data)
 		il->txr_api = NULL;
 	} else {
 		weston_log("ivi-layout: Transmitter enabled.\n");
+		il->connected_listener.notify = surface_connected_handler;
+		il->txr_api->register_connection_status(il->transmitter,
+							&il->connected_listener);
 	}
 }
 

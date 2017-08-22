@@ -129,6 +129,7 @@ struct ivi_layout {
 	const struct weston_transmitter_ivi_api *txr_ivi_api;
 	struct weston_transmitter *transmitter;
 	struct wl_signal stream_status_signal;
+	struct wl_listener connected_listener;
 };
 
 struct ivi_layout *get_instance(void);
