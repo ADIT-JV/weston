@@ -191,6 +191,22 @@ struct weston_transmitter_api {
 
 	void
 	(*surface_gather_state)(struct weston_transmitter_surface *txs);
+
+	/** Notify that surface is connected to receiver
+	 *
+	 * \param txr The Transmitter context.
+	 * \param connected_listener Listener for connected_signal.
+	 */
+	void
+	(*register_connection_status)(struct weston_transmitter *txr,
+				      struct wl_listener *connected_listener);
+
+	/** get weston_surface from weston_transmitter_surface
+	 *
+	 * \param txs The Transmitter surface.
+	 */
+	struct weston_surface *
+	(*get_weston_surface)(struct weston_transmitter_surface *txs);
 };
 
 static inline const struct weston_transmitter_api *

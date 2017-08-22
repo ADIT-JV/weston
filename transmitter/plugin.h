@@ -104,6 +104,7 @@ struct weston_transmitter {
 
 	struct wl_listener connection_listener;
 	struct wl_listener stream_listener;
+	struct wl_signal connected_signal;
 
 	int epoll_fd;
 };

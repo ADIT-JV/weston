@@ -543,6 +543,7 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 	if (!txs->wthp_surf) {
 		weston_log("txs->wthp_surf is NULL\n");
 		txs->wthp_surf = wthp_compositor_create_surface(remote->display->compositor);
+		wl_signal_emit(&txr->connected_signal, txs);
 //		fake_stream_opening(txs);
 	}
 
@@ -1118,6 +1119,19 @@ transmitter_get(struct weston_compositor *compositor)
 	return txr;
 }
 
+static void
+transmitter_register_connection_status(struct weston_transmitter *txr,
+				       struct wl_listener *connected_listener)
+{
+	wl_signal_add(&txr->connected_signal, connected_listener);
+}
+
+static struct weston_surface *
+transmitter_get_weston_surface(struct weston_transmitter_surface *txs)
+{
+	return txs->surface;
+}
+
 static const struct weston_transmitter_api transmitter_api_impl = {
 	transmitter_get,
 	transmitter_connect_to_remote,
@@ -1128,6 +1142,8 @@ static const struct weston_transmitter_api transmitter_api_impl = {
 	transmitter_surface_destroy,
 	transmitter_surface_configure,
 	transmitter_surface_gather_state,
+	transmitter_register_connection_status,
+	transmitter_get_weston_surface,
 };
 
 static void
@@ -1313,6 +1329,7 @@ wet_module_init(struct weston_compositor *compositor, int *argc, char *argv[])
 	txr->compositor = compositor;
 	txr->compositor_destroy_listener.notify =
 		transmitter_compositor_destroyed;
+	wl_signal_init(&txr->connected_signal);
 	wl_signal_add(&compositor->destroy_signal,
 		      &txr->compositor_destroy_listener);
 
