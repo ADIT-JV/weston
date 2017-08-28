@@ -201,6 +201,9 @@ struct weston_transmitter_output {
 	struct frame *frame;
 
 	struct wl_callback *frame_cb;
+	struct wl_listener frame_listener;
+
+	bool from_frame_signal;
 };
 
 struct weston_transmitter_seat {

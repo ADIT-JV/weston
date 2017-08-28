@@ -175,7 +175,7 @@ transmitter_start_repaint_loop(struct weston_output *base)
 	weston_log("%s(%s)\n", __func__, base->name);
 	struct timespec ts;
 	struct weston_transmitter_output *output = to_transmitter_output(base);
-	
+
 	weston_compositor_read_presentation_clock(output->base.compositor, &ts);
 	weston_output_finish_frame(&output->base, &ts, 0);
 }
@@ -216,6 +216,11 @@ transmitter_output_repaint(struct weston_output *base,
 	struct weston_view *view;
 	bool found_outut = false;
 
+	if (!output->from_frame_signal)
+		return 0;
+
+	output->from_frame_signal = false;
+
 	/* 
 	 * Pick up weston_view in transmitter_output and check weston_view's surface
 	 * If the surface hasn't been conbined to weston_transmitter_surface, 
@@ -251,8 +256,6 @@ transmitter_output_repaint(struct weston_output *base,
 	if (!found_outut)
 		goto out;
 
-	transmitter_start_repaint_loop(base);
-
 	return 0;
 
 out:
@@ -260,8 +263,8 @@ out:
 	transmitter_start_repaint_loop(base);
 
 	return 0;
-
 }
+
 static void
 transmitter_output_enable(struct weston_output *base)
 {
@@ -277,12 +280,30 @@ transmitter_output_enable(struct weston_output *base)
 	return 0;
 }
 
+static void
+transmitter_output_frame_handler(struct wl_listener *listener, void *data)
+{
+	struct weston_transmitter_output *output;
+	int ret;
+
+	output = container_of(listener, struct weston_transmitter_output,
+			      frame_listener);
+
+	weston_log("\n\n\n\ntransmitter_output_frame_handler\n\n\n\n");
+
+	output->from_frame_signal = true;
+
+	weston_log("call transmitter_output_repaint\n");
+	ret = transmitter_output_repaint(&output->base, NULL);
+}
+
 int
 transmitter_remote_create_output(struct weston_transmitter_remote *remote,
 				 const struct weston_transmitter_output_info *info)
 {
 	struct weston_transmitter_output *output;
 	struct weston_transmitter *txr = remote->transmitter;
+	struct weston_output *def_output;
 
 	output = zalloc(sizeof *output);
 	if (!output)
@@ -340,6 +361,13 @@ transmitter_remote_create_output(struct weston_transmitter_remote *remote,
 	weston_log("Not calling weston_compositor_add_pending_output\n");
 
 	weston_output_enable(&output->base);
+
+	output->frame_listener.notify = transmitter_output_frame_handler;
+	def_output = container_of(txr->compositor->output_list.next,
+				  struct weston_output, link);
+	wl_signal_add(&def_output->frame_signal, &output->frame_listener);
+	output->from_frame_signal = false;
+
 	weston_log("Transmitter created output '%s': %s, %s, %s\n",
 		   output->base.name, output->base.make, output->base.model,
 		   output->base.serial_number);

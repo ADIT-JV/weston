@@ -223,6 +223,15 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 		wl_signal_add(&txs->surface->commit_signal, &txs->commit_listener);
 	}
 
+	if (!wl_list_empty(&txs->surface->frame_callback_list))  {
+		wl_list_insert_list(&txs->frame_callback_list,
+				    &txs->surface->frame_callback_list);
+		wl_list_init(&txs->surface->frame_callback_list);
+
+		wl_list_insert_list(&txs->feedback_list, &txs->surface->feedback_list);
+		wl_list_init(&txs->surface->feedback_list);
+	}
+
 	if (txs->remote->status != WESTON_TRANSMITTER_CONNECTION_READY ||
 	    !txs->wthp_surf ||
 	    !remote->display->running ) {
