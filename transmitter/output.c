@@ -180,6 +180,24 @@ transmitter_start_repaint_loop(struct weston_output *base)
 	weston_output_finish_frame(&output->base, &ts, 0);
 }
 
+static int
+transmitter_check_output(struct weston_transmitter_surface *txs,
+			 struct weston_compositor *compositor)
+{
+	struct weston_output *def_output = container_of(compositor->output_list.next,
+							struct weston_output, link);
+	struct weston_view *view;
+
+	wl_list_for_each_reverse(view, &compositor->view_list, link) {
+		if (view->output == def_output) {
+			if (view->surface == txs->surface)
+				return 1;
+		}
+	}
+
+	return 0;
+}
+
 static void *
 transmitter_reset_commit_signal(struct weston_transmitter_output *output)
 {
@@ -239,11 +257,14 @@ transmitter_output_repaint(struct weston_output *base,
 			wl_list_for_each(txs, &remote->surface_list, link) {
 				if (txs->surface == view->surface) {
 					weston_log("test log::surface on transmitter output\n");
+					found_surface = true;
+					if (!transmitter_check_output(txs, compositor))
+						break;
+
 					if (!txs->wthp_surf)
 						transmitter_api->surface_push_to_remote(view->surface,
 											remote, NULL);
 					transmitter_api->surface_gather_state(txs);
-					found_surface = true;
 					break;
 				}
 			}
@@ -289,7 +310,7 @@ transmitter_output_frame_handler(struct wl_listener *listener, void *data)
 	output = container_of(listener, struct weston_transmitter_output,
 			      frame_listener);
 
-	weston_log("\n\n\n\ntransmitter_output_frame_handler\n\n\n\n");
+	weston_log("transmitter_output_frame_handler\n");
 
 	output->from_frame_signal = true;
 
