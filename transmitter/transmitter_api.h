@@ -103,8 +103,7 @@ struct weston_transmitter_api {
 	 *
 	 */
 	struct weston_transmitter_remote *
-	(*connect_to_remote)(struct weston_transmitter *txr,
-			     struct wl_listener *status);
+	(*connect_to_remote)(struct weston_transmitter *txr);
 
 	/**
 	 * Retrieve the connection status.

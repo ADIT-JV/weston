@@ -154,9 +154,6 @@ static void
 buffer_send_complete(struct wthp_buffer *b, uint32_t serial)
 {
 	weston_log("wth_buffer.send_complete(%d)\n", serial);
-	/*struct weston_transmitter_surface *txs =
-	  wth_object_get_user_data((struct wth_object *)b);*/
-	//frame_callback_handler(txs);
 	if (b)
 		wthp_buffer_destroy(b);
 }
@@ -247,6 +244,7 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 	}
 
 	/* TODO: transmit surface state to remote */
+	/* The buffer must be transmitted to remote side */
 
 	/* waltham */
 	struct weston_surface *surf = txs->surface;
@@ -300,7 +298,6 @@ transmitter_surface_apply_state(struct wl_listener *listener, void *data)
 	assert(data == NULL);
 
 	transmitter_surface_gather_state(txs);
-//	fake_frame_callback(txs);
 }
 
 /** Mark the weston_transmitter_surface dead.
@@ -326,7 +323,7 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 	txs->surface = NULL;
 
 	wl_list_remove(&txs->sync_output_destroy_listener.link);
-//	wl_list_remove(&txs->apply_state_listener.link);
+
 	if (txs->commit_listener.notify) {
 		wl_list_remove(&txs->commit_listener.link);
 		txs->commit_listener.notify = NULL;
@@ -445,7 +442,6 @@ map_timer_handler(void *data)
 		   txs->surface, txs->sync_output->name);
 
 	fake_frame_callback(txs);
-//	fake_input(txs);
 
 	return 0;
 }
@@ -460,33 +456,6 @@ fake_output_mapping(struct weston_transmitter_surface *txs)
 	loop = wl_display_get_event_loop(txr->compositor->wl_display);
 	txs->map_timer = wl_event_loop_add_timer(loop, map_timer_handler, txs);
 	wl_event_source_timer_update(txs->map_timer, 400);
-}
-
-/* Fake getting "connection established" from the content streamer. */
-static void
-fake_stream_opening_handler(void *data)
-{
-	struct weston_transmitter_surface *txs = data;
-
-	/* ...once the connection is up: */
-	txs->status = WESTON_TRANSMITTER_STREAM_LIVE;
-	wl_signal_emit(&txs->stream_status_signal, txs);
-
-	/* need to create the surface on the remote and set all state */
-	transmitter_surface_gather_state(txs);
-
-	fake_output_mapping(txs);
-}
-
-/* Fake a callback from content streamer. */
-static void
-fake_stream_opening(struct weston_transmitter_surface *txs)
-{
-	struct weston_transmitter *txr = txs->remote->transmitter;
-	struct wl_event_loop *loop;
-
-	loop = wl_display_get_event_loop(txr->compositor->wl_display);
-	wl_event_loop_add_idle(loop, fake_stream_opening_handler, txs);
 }
 
 static struct weston_transmitter_surface *
@@ -531,9 +500,6 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 		txs->surface_destroy_listener.notify = transmitter_surface_destroyed;
 		wl_signal_add(&ws->destroy_signal, &txs->surface_destroy_listener);
 
-//		txs->apply_state_listener.notify = transmitter_surface_apply_state;
-//		wl_signal_add(&ws->apply_state_signal, &txs->apply_state_listener);
-
 		txs->commit_listener.notify = transmitter_surface_commit_signal;
 		wl_signal_add(&ws->commit_signal, &txs->commit_listener);
 
@@ -546,14 +512,13 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 		wl_signal_add(&ws->commit_signal, &txs->commit_listener);
 	}
 	/* TODO: create the content stream connection... */
-
 	if (!remote->display->compositor)
 		weston_log("remote->compositor is NULL\n");
 	if (!txs->wthp_surf) {
 		weston_log("txs->wthp_surf is NULL\n");
 		txs->wthp_surf = wthp_compositor_create_surface(remote->display->compositor);
 		wl_signal_emit(&txr->connected_signal, txs);
-//		fake_stream_opening(txs);
+
 	}
 
 	return txs;
@@ -565,41 +530,6 @@ transmitter_surface_get_stream_status(struct weston_transmitter_surface *txs)
 	return txs->status;
 }
 
-#if 0
-static int
-conn_timer_handler(void *data) /* fake */
-{
-	struct weston_transmitter_remote *remote = data;
-	struct weston_transmitter_output_info info = {
-		WL_OUTPUT_SUBPIXEL_NONE,
-		WL_OUTPUT_TRANSFORM_NORMAL,
-		1,
-		0, 0,
-		300, 200,
-		"fake",
-		{
-			WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
-			800, 600,
-			51519,
-			{ NULL, NULL }
-		}
-	};
-
-	weston_log("Transmitter connected to %s.\n", remote->addr);
-	remote->status = WESTON_TRANSMITTER_CONNECTION_READY;
-	wl_signal_emit(&remote->connection_status_signal, remote);
-
-	wl_event_source_remove(remote->conn_timer);
-	remote->conn_timer = NULL;
-	/* Outputs and seats are dynamic, do not guarantee they are all
-	 * present when signalling connection status.
-	 */
-	transmitter_remote_create_output(remote, &info);
-	transmitter_remote_create_seat(remote);
-
-	return 0;
-}
-#endif
 /* notify connection ready */
 static void
 conn_ready_notify(struct wl_listener *l, void *data)
@@ -998,8 +928,7 @@ retry_timer_handler(void *data)
 }
 
 static struct weston_transmitter_remote *
-transmitter_connect_to_remote(struct weston_transmitter *txr,
-			      struct wl_listener *status)
+transmitter_connect_to_remote(struct weston_transmitter *txr)
 {
 	struct weston_transmitter_remote *remote;
 	struct wl_event_loop *loop_est, *loop_retry;
@@ -1199,35 +1128,6 @@ static const struct weston_transmitter_ivi_api transmitter_ivi_api_impl = {
 	transmitter_surface_set_resize_callback,
 };
 
-static void
-connection_status_handler(struct wl_listener *listener, void *data)
-{
-	struct weston_transmitter *txr = data;
-//	struct ivishell *shell = wl_container_of(listener, shell, connection_listener);
-	struct weston_transmitter_remote *remote = data;
-	enum weston_transmitter_connection_status status;
-
-
-//	status = remote_get_status(remote);
-//	weston_log("shell: connection status %d\n", status);
-
-	if(status == WESTON_TRANSMITTER_CONNECTION_READY) {
-#if 0
-		wl_list_for_each_reverse(ivisurf, &shell->list_surface, link) {
-			surface_id = shell->interface->get_id_of_surface(ivisurf->layout_surface);
-			layout_surface = lyt->get_surface_from_id(surface_id);
-			if (!layout_surface)
-				continue;
-			ivisurf = get_surface(&shell->list_surface, layout_surface);
-			if (!ivisurf)
-				continue;
-			weston_log("Ready to surface remoting %d\n", surface_id);
-			start_remoting(shell, ivisurf);
-		}
-#endif
-	}
-}
-
 static int
 transmitter_create_remote(struct weston_transmitter *txr,
 			  const char *model,
@@ -1247,7 +1147,6 @@ transmitter_create_remote(struct weston_transmitter *txr,
 	remote->port = strdup(port);
 	remote->status = WESTON_TRANSMITTER_CONNECTION_INITIALIZING;
 	wl_signal_init(&remote->connection_status_signal);
-//	wl_signal_add(&remote->connection_status_signal, status);
 	wl_list_init(&remote->output_list);
 	wl_list_init(&remote->surface_list);
 	wl_list_init(&remote->seat_list);
@@ -1317,8 +1216,7 @@ transmitter_post_init(void *data)
 
 		weston_log("Transmitter enabled.\n");
 		transmitter_get_server_config(txr);
-		txr->connection_listener.notify = connection_status_handler;
-		transmitter_connect_to_remote(txr, &txr->connection_listener);
+		transmitter_connect_to_remote(txr);
 	}
 }
 
