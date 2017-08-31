@@ -346,8 +346,8 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 		weston_log("remote->compositor is NULL\n");
 	if (txs->wthp_surf)
 		wthp_surface_destroy(txs->wthp_surf);
-	if (txs->ivi_surface)
-		ivi_surface_destroy(txs->ivi_surface);
+	if (txs->wthp_ivi_surface)
+		wthp_ivi_surface_destroy(txs->wthp_ivi_surface);
 
 	/* In case called from destroy_transmitter() */
 	txs->remote = NULL;
@@ -659,9 +659,9 @@ registry_handle_global(struct wthp_registry *registry,
 		assert(!dpy->seat); 
 		dpy->seat = (struct wthp_seat *)wthp_registry_bind(registry, name, interface, 1);
 		wthp_seat_set_listener(dpy->seat, &seat_listener, dpy);
-	} else if (strcmp(interface, "ivi_application") == 0) {
+	} else if (strcmp(interface, "wthp_ivi_application") == 0) {
 	        assert(!dpy->application);
-		dpy->application = (struct ivi_application *)wthp_registry_bind(registry, name, interface, 1);
+		dpy->application = (struct wthp_ivi_application *)wthp_registry_bind(registry, name, interface, 1);
 	}
 }
 
@@ -970,9 +970,9 @@ disconnect_surface(struct weston_transmitter_remote *remote)
 	struct weston_transmitter_surface *txs;
 	wl_list_for_each(txs, &remote->surface_list, link)
 	{
-		free(txs->ivi_surface);
+		free(txs->wthp_ivi_surface);
 		free(txs->wthp_surf);
-		txs->ivi_surface = NULL;
+		txs->wthp_ivi_surface = NULL;
 		txs->wthp_surf = NULL;
 	}
 }
@@ -1175,9 +1175,9 @@ transmitter_surface_set_ivi_id(struct weston_transmitter_surface *txs,
 
 	if(!dpy->application)
 		weston_log("no content in ivi-application object\n");
-	txs->ivi_surface = ivi_application_surface_create(dpy->application,
+	txs->wthp_ivi_surface = wthp_ivi_application_surface_create(dpy->application,
 							  ivi_id,  txs->wthp_surf);
-	if(!txs->ivi_surface){
+	if(!txs->wthp_ivi_surface){
 		weston_log("Failed to create txs->ivi_surf\n");
 	}
          

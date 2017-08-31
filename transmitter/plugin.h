@@ -165,8 +165,8 @@ struct weston_transmitter_surface {
 	struct wthp_surface *wthp_surf;
 	struct wthp_blob_factory *wthp_blob;
 	struct wthp_buffer *wthp_buf;
-        struct ivi_surface *ivi_surface;
-        struct ivi_application *ivi_application;
+        struct wthp_ivi_surface *wthp_ivi_surface;
+        struct wthp_ivi_application *wthp_ivi_application;
 };
 
 struct weston_transmitter_output_info {
