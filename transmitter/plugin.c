@@ -29,11 +29,13 @@
 #include <assert.h>
 #include <string.h>
 #include <linux/input.h>
+#include <pthread.h>
 
 #include "compositor.h"
 #include "helpers.h"
 #include "timespec-util.h"
 
+#include "compositor/weston.h"
 #include "plugin.h"
 #include "transmitter_api.h"
 
@@ -123,22 +125,6 @@ frame_callback_handler(void *data) /* fake */
 }
 
 static void
-fake_frame_callback(struct weston_transmitter_surface *txs)
-{
-	struct weston_transmitter *txr = txs->remote->transmitter;
-	struct wl_event_loop *loop;
-
-	if (!txs->frame_timer) {
-		loop = wl_display_get_event_loop(txr->compositor->wl_display);
-		txs->frame_timer =
-			wl_event_loop_add_timer(loop,
-						frame_callback_handler, txs);
-	}
-
-	wl_event_source_timer_update(txs->frame_timer, 1);
-}
-
-static void
 transmitter_surface_configure(struct weston_transmitter_surface *txs,
 			      int32_t dx, int32_t dy)
 {
@@ -188,8 +174,6 @@ transmitter_surface_commit_signal(struct wl_listener *listener, void *data)
 	struct weston_transmitter_surface *txs =
 		container_of(listener, struct weston_transmitter_surface,
 			     commit_listener);
-	struct weston_transmitter_remote *remote = txs->remote;
-	struct wthp_callback *cb;
 
 	wl_list_insert_list(&txs->frame_callback_list,
 			    &txs->surface->frame_callback_list);
@@ -274,18 +258,6 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 	txs->attach_dy = 0;
 }
 
-/** weston_surface apply state signal handler */
-static void
-transmitter_surface_apply_state(struct wl_listener *listener, void *data)
-{
-	struct weston_transmitter_surface *txs =
-		container_of(listener, struct weston_transmitter_surface,
-			     apply_state_listener);
-	assert(data == NULL);
-
-	transmitter_surface_gather_state(txs);
-}
-
 /** Mark the weston_transmitter_surface dead.
  *
  * Stop all remoting actions on this surface.
@@ -312,11 +284,6 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 		wl_list_remove(&txs->commit_listener.link);
 		txs->commit_listener.notify = NULL;
 	}
-
-	if (txs->map_timer)
-		wl_event_source_remove(txs->map_timer);
-	if (txs->frame_timer)
-		wl_event_source_remove(txs->frame_timer);
 
 	weston_presentation_feedback_discard_list(&txs->feedback_list);
 	wl_list_for_each_safe(framecb, cnext, &txs->frame_callback_list, link)
@@ -356,25 +323,6 @@ transmitter_surface_destroyed(struct wl_listener *listener, void *data)
 	transmitter_surface_zombify(txs);
 }
 
-static struct weston_transmitter_surface *
-transmitter_surface_get(struct weston_surface *ws)
-{
-	struct wl_listener *listener;
-	struct weston_transmitter_surface *txs;
-
-	listener = wl_signal_get(&ws->destroy_signal,
-				 transmitter_surface_destroyed);
-
-	if (!listener)
-		return NULL;
-
-	txs = container_of(listener, struct weston_transmitter_surface,
-			   surface_destroy_listener);
-	assert(ws == txs->surface);
-
-	return txs;
-}
-
 static void
 sync_output_destroy_handler(struct wl_listener *listener, void *data)
 {
@@ -389,56 +337,6 @@ sync_output_destroy_handler(struct wl_listener *listener, void *data)
 	weston_surface_force_output(txs->surface, NULL);
 }
 
-static void
-fake_input(struct weston_transmitter_surface *txs)
-{
-	struct wl_list *seat_list = &txs->remote->seat_list;
-	struct weston_transmitter_seat *seat;
-
-	assert(wl_list_length(seat_list) == 1);
-	seat = container_of(seat_list->next,
-			    struct weston_transmitter_seat, link);
-
-	transmitter_seat_fake_pointer_input(seat, txs);
-}
-
-/* fake receiving wl_surface.enter(output) */
-static int
-map_timer_handler(void *data)
-{
-	struct weston_transmitter_surface *txs = data;
-	struct weston_transmitter_output *output;
-
-	assert(!wl_list_empty(&txs->remote->output_list));
-
-	output = container_of(txs->remote->output_list.next,
-			      struct weston_transmitter_output, link);
-
-	txs->sync_output = &output->base;
-	txs->sync_output_destroy_listener.notify = sync_output_destroy_handler;
-	wl_list_remove(&txs->sync_output_destroy_listener.link);
-	wl_signal_add(&txs->sync_output->destroy_signal,
-		      &txs->sync_output_destroy_listener);
-
-	weston_surface_force_output(txs->surface, txs->sync_output);
-
-	fake_frame_callback(txs);
-
-	return 0;
-}
-
-/* Fake a delay for the remote end to map the surface to an output */
-static void
-fake_output_mapping(struct weston_transmitter_surface *txs)
-{
-	struct weston_transmitter *txr = txs->remote->transmitter;
-	struct wl_event_loop *loop;
-
-	loop = wl_display_get_event_loop(txr->compositor->wl_display);
-	txs->map_timer = wl_event_loop_add_timer(loop, map_timer_handler, txs);
-	wl_event_source_timer_update(txs->map_timer, 400);
-}
-
 static struct weston_transmitter_surface *
 transmitter_surface_push_to_remote(struct weston_surface *ws,
 				   struct weston_transmitter_remote *remote,
@@ -446,7 +344,6 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 {
 	struct weston_transmitter *txr = remote->transmitter;
 	struct weston_transmitter_surface *txs;
-	bool txs_need_create = false;
 	bool found = false;
 
 	if (remote->status != WESTON_TRANSMITTER_CONNECTION_READY)
@@ -785,7 +682,6 @@ waltham_client_init(struct waltham_display *dpy)
 	/*
 	 * get server_address from controller (adrress is set to weston.ini)
 	 */
-	printf("wth_connect_to_server %s:%s\n", dpy->remote->addr, dpy->remote->port);
 	dpy->connection = wth_connect_to_server(dpy->remote->addr, dpy->remote->port);
 
 	if(!dpy->connection)
@@ -1076,6 +972,7 @@ transmitter_surface_set_ivi_id(struct weston_transmitter_surface *txs,
 
 	if(!dpy->application)
 		weston_log("no content in ivi-application object\n");
+
 	txs->wthp_ivi_surface = wthp_ivi_application_surface_create(dpy->application,
 							  ivi_id,  txs->wthp_surf);
 	if(!txs->wthp_ivi_surface){
@@ -1159,7 +1056,6 @@ transmitter_get_server_config(struct weston_transmitter *txr)
 			ret = transmitter_create_remote(txr, model, addr, port);
 			if (ret < 0) {
 				weston_log("Fatal: Transmitter create_remote failed.\n");
-				return NULL;
 			}
 		}
 	} 
@@ -1169,17 +1065,13 @@ static void
 transmitter_post_init(void *data)
 {
 	struct weston_transmitter *txr = data;
-	struct weston_transmitter_api* transmitter_api =
-		weston_get_transmitter_api(txr->compositor);
 
 	if (!txr) {
 		weston_log("Transmitter disabled\n");
 	} else {
 		txr->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
-		if (txr->epoll_fd == -1) {
+		if (txr->epoll_fd == -1)
 			perror("Error on epoll_create1");
-			return NULL;
-		}
 
 		transmitter_get_server_config(txr);
 		transmitter_connect_to_remote(txr);

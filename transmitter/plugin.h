@@ -81,7 +81,7 @@ struct waltham_display {
 	struct wthp_pointer *pointer;
 	struct wthp_keyboard *keyboard;
 	struct wthp_touch *touch;
-        struct ivi_application *application;
+        struct wthp_ivi_application *application;
 	struct wtimer *fiddle_timer;
 
 	struct weston_transmitter_remote *remote;
@@ -151,9 +151,6 @@ struct weston_transmitter_surface {
 
 	struct weston_output *sync_output;
 	struct wl_listener sync_output_destroy_listener;
-
-	struct wl_event_source *map_timer; /* fake */
-	struct wl_event_source *frame_timer; /* fake */
 
 	int32_t attach_dx; /**< wl_surface.attach(buffer, dx, dy) */
 	int32_t attach_dy; /**< wl_surface.attach(buffer, dx, dy) */
