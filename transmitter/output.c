@@ -147,8 +147,6 @@ free_mode_list(struct wl_list *mode_list)
 void
 transmitter_output_destroy(struct weston_transmitter_output *output)
 {
-	weston_log("Transmitter destroying output '%s'\n", output->base.name);
-
 	wl_list_remove(&output->link);
 
 	free_mode_list(&output->base.mode_list);
@@ -172,7 +170,6 @@ transmitter_output_destroy_(struct weston_output *base)
 static void
 transmitter_start_repaint_loop(struct weston_output *base)
 {
-	weston_log("%s(%s)\n", __func__, base->name);
 	struct timespec ts;
 	struct weston_transmitter_output *output = to_transmitter_output(base);
 
@@ -223,7 +220,6 @@ static int
 transmitter_output_repaint(struct weston_output *base,
 			   pixman_region32_t *damage)
 {
-	weston_log("%s(%s)\n", __func__, base->name);
 	struct weston_transmitter_output* output = to_transmitter_output(base);
 	struct weston_transmitter_remote* remote = output->remote;
 	struct weston_transmitter* txr = remote->transmitter;
@@ -250,13 +246,10 @@ transmitter_output_repaint(struct weston_output *base,
 
 	wl_list_for_each_reverse(view, &compositor->view_list, link) {
 		bool found_surface = false;
-		weston_log("wl_list_for_each weston_view... %s:%s\n", remote->addr, remote->port);
 		if (view->output == &output->base) {
-			weston_log("This view is contained on this output\n");
 			found_outut = true;
 			wl_list_for_each(txs, &remote->surface_list, link) {
 				if (txs->surface == view->surface) {
-					weston_log("test log::surface on transmitter output\n");
 					found_surface = true;
 					if (!transmitter_check_output(txs, compositor))
 						break;
@@ -268,10 +261,8 @@ transmitter_output_repaint(struct weston_output *base,
 					break;
 				}
 			}
-			if (!found_surface) {
-				weston_log("test log::add new remote surface \n");
+			if (!found_surface)
 				transmitter_api->surface_push_to_remote(view->surface, remote, NULL);
-			}
 		}
 	}
 	if (!found_outut)
@@ -289,7 +280,6 @@ out:
 static void
 transmitter_output_enable(struct weston_output *base)
 {
-	weston_log("%s(%s)\n", __func__, base->name);
 	struct weston_transmitter_output *output = to_transmitter_output(base);
 	int ret = 0;
 	
@@ -309,12 +299,8 @@ transmitter_output_frame_handler(struct wl_listener *listener, void *data)
 
 	output = container_of(listener, struct weston_transmitter_output,
 			      frame_listener);
-
-	weston_log("transmitter_output_frame_handler\n");
-
 	output->from_frame_signal = true;
 
-	weston_log("call transmitter_output_repaint\n");
 	ret = transmitter_output_repaint(&output->base, NULL);
 }
 
@@ -379,7 +365,6 @@ transmitter_remote_create_output(struct weston_transmitter_remote *remote,
 
 	output->remote = remote;
 	wl_list_insert(&remote->output_list, &output->link);
-	weston_log("Not calling weston_compositor_add_pending_output\n");
 
 	weston_output_enable(&output->base);
 
@@ -388,10 +373,6 @@ transmitter_remote_create_output(struct weston_transmitter_remote *remote,
 				  struct weston_output, link);
 	wl_signal_add(&def_output->frame_signal, &output->frame_listener);
 	output->from_frame_signal = false;
-
-	weston_log("Transmitter created output '%s': %s, %s, %s\n",
-		   output->base.name, output->base.make, output->base.model,
-		   output->base.serial_number);
 
 	return 0;
 

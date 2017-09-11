@@ -153,7 +153,6 @@ transmitter_surface_configure(struct weston_transmitter_surface *txs,
 static void
 buffer_send_complete(struct wthp_buffer *b, uint32_t serial)
 {
-	weston_log("wth_buffer.send_complete(%d)\n", serial);
 	if (b)
 		wthp_buffer_destroy(b);
 }
@@ -165,7 +164,6 @@ static const struct wthp_buffer_listener buffer_listener = {
 static void
 surface_render_complete(struct wthp_callback *wthp_cb, uint32_t serial)
 {
-        weston_log("wth_callback.surface_render_complete(%d)\n", serial);
 	struct weston_transmitter_surface *txs;
 	struct weston_frame_callback *cb, *cnext;
 	uint32_t frame_time;
@@ -193,10 +191,6 @@ transmitter_surface_commit_signal(struct wl_listener *listener, void *data)
 	struct weston_transmitter_remote *remote = txs->remote;
 	struct wthp_callback *cb;
 
-	weston_log("Transmitter: update surface %p (%d, %d), %d cb\n",
-		   txs->surface, txs->attach_dx, txs->attach_dy,
-		   wl_list_length(&txs->surface->frame_callback_list));
-
 	wl_list_insert_list(&txs->frame_callback_list,
 			    &txs->surface->frame_callback_list);
 	wl_list_init(&txs->surface->frame_callback_list);
@@ -210,10 +204,6 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 {
 	struct weston_transmitter_remote *remote = txs->remote;
 	struct wthp_callback *cb;
-	fprintf(stderr, "transmitter_surface_gather_state %p\n", txs); fflush(stderr);
-	weston_log("Transmitter: update surface %p (%d, %d), %d cb\n",
-		   txs->surface, txs->attach_dx, txs->attach_dy,
-		   wl_list_length(&txs->surface->frame_callback_list));
 
 	if (!txs->commit_listener.notify) {
 		txs->commit_listener.notify = transmitter_surface_commit_signal;
@@ -254,14 +244,11 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 	
 	width = 1;
 	height = 1;
-	weston_log("width %d height %d\n", surf->width, surf->height);
 	//stride = surf->width * (PIXMAN_FORMAT_BPP(comp->read_format) / 8);
 	stride = width * (PIXMAN_FORMAT_BPP(comp->read_format) / 8);
-	weston_log("stride %d\n", stride);
 
 	data = malloc(stride * height);
 	data_sz = stride * height;
-	weston_log("data_sz = %d\n", data_sz);
 
 	//weston_surface_copy_content(surf, data, data_sz, 0, 0, surf->width, surf->height);
 	/* fake sending buffer */
@@ -294,7 +281,6 @@ transmitter_surface_apply_state(struct wl_listener *listener, void *data)
 	struct weston_transmitter_surface *txs =
 		container_of(listener, struct weston_transmitter_surface,
 			     apply_state_listener);
-	weston_log("get signal and apply state\n");
 	assert(data == NULL);
 
 	transmitter_surface_gather_state(txs);
@@ -311,7 +297,6 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 {
 	struct weston_frame_callback *framecb, *cnext;
 	struct weston_transmitter_remote *remote;
-	weston_log("surface zombify\n");
 	/* may be called multiple times */
 	if (!txs->surface)
 		return;
@@ -319,7 +304,6 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 	wl_signal_emit(&txs->destroy_signal, txs);
 
 	wl_list_remove(&txs->surface_destroy_listener.link);
-	weston_log("Transmitter unbound surface %p.\n", txs->surface);
 	txs->surface = NULL;
 
 	wl_list_remove(&txs->sync_output_destroy_listener.link);
@@ -438,9 +422,6 @@ map_timer_handler(void *data)
 
 	weston_surface_force_output(txs->surface, txs->sync_output);
 
-	weston_log("Transmitter: surface %p entered output %s\n",
-		   txs->surface, txs->sync_output->name);
-
 	fake_frame_callback(txs);
 
 	return 0;
@@ -463,7 +444,6 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 				   struct weston_transmitter_remote *remote,
 				   struct wl_listener *stream_status)
 {
-	weston_log("transmitter_surface_push_to_remote %s:%s\n", remote->addr, remote->port);
 	struct weston_transmitter *txr = remote->transmitter;
 	struct weston_transmitter_surface *txs;
 	bool txs_need_create = false;
@@ -575,8 +555,6 @@ registry_handle_global(struct wthp_registry *registry,
 {
 	struct waltham_display *dpy = wth_object_get_user_data((struct wth_object *)registry);
 	
-	printf("got global %d: '%s' version '%d'\n",name, interface, version);
-
 	if (strcmp(interface, "wthp_compositor") == 0) {
 		assert(!dpy->compositor); 
 		dpy->compositor = (struct wthp_compositor *)wthp_registry_bind(registry, name, interface, 1);
@@ -606,7 +584,6 @@ static void
 registry_handle_global_remove(struct wthp_registry *wthp_registry,
 			      uint32_t name)
 {
-	printf("global %d removed\n", name);
 	if (wthp_registry)
 		wthp_registry_free(wthp_registry);
 }
@@ -936,8 +913,6 @@ transmitter_connect_to_remote(struct weston_transmitter *txr)
 
 	wl_list_for_each_reverse(remote, &txr->remote_list, link) {
 		/* XXX: actually start connecting */
-		weston_log("Transmitter connecting to %s:%s...\n", remote->addr, remote->port);
-
 		/* waltham */
 		remote->display = zalloc(sizeof *remote->display);
 		if (!remote->display)
@@ -985,7 +960,6 @@ transmitter_remote_destroy(struct weston_transmitter_remote *remote)
 	 * the desctruction order between the shell and Transmitter is
 	 * undefined.
 	 */
-	weston_log("Transmitter disconnecting from %s.\n", remote->addr);
 
 	if (remote->conn_timer)
 		wl_event_source_remove(remote->conn_timer);
@@ -1035,7 +1009,6 @@ transmitter_compositor_destroyed(struct wl_listener *listener, void *data)
 	 */
 	wl_list_remove(&txr->remote_list);
 
-	weston_log("Transmitter terminating.\n");
 	free(txr);
 }
 
@@ -1094,7 +1067,6 @@ transmitter_surface_set_ivi_id(struct weston_transmitter_surface *txs,
 	assert(txs->surface);
 	if (!txs->surface)
 		return;
-	weston_log("ID %d\n", ivi_id);
 	if(!dpy)
 		weston_log("no content in waltham_display\n");
 	if(!dpy->compositor)
@@ -1168,7 +1140,6 @@ transmitter_get_server_config(struct weston_transmitter *txr)
 	char *port = NULL;
 	int ret;
 
-	weston_log("Connect to remote\n");
 	section = weston_config_get_section(config, "remote", NULL, NULL);
 
 	while (weston_config_next_section(config, &section, &name)) {
@@ -1185,10 +1156,6 @@ transmitter_get_server_config(struct weston_transmitter *txr)
 								  &port, 0))
 				continue;
 
-			weston_log("--------- remote-output conf --------\n");
-			weston_log("output-model   : %s\n", model);
-			weston_log("server-address : %s\n", addr);
-			weston_log("port           : %s\n", port);
 			ret = transmitter_create_remote(txr, model, addr, port);
 			if (ret < 0) {
 				weston_log("Fatal: Transmitter create_remote failed.\n");
@@ -1214,7 +1181,6 @@ transmitter_post_init(void *data)
 			return NULL;
 		}
 
-		weston_log("Transmitter enabled.\n");
 		transmitter_get_server_config(txr);
 		transmitter_connect_to_remote(txr);
 	}
