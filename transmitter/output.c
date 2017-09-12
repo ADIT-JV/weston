@@ -68,29 +68,6 @@ to_transmitter_output(struct weston_output *base)
 	return container_of(base, struct weston_transmitter_output, base);
 }
 
-static void
-frame_done(void *data, struct wl_callback *callback, uint32_t time)
-{
-	struct weston_transmitter_output *output = data;
-	struct timespec ts;
-
-	assert(callback == output->frame_cb);
-	wl_callback_destroy(callback);
-	output->frame_cb = NULL;
-
-	/* XXX: use the presentation extension for proper timings */
-
-	/*
-	 * This is the fallback case, where Presentation extension is not
-	 * available from the parent compositor. We do not know the base for
-	 * 'time', so we cannot feed it to finish_frame(). Do the only thing
-	 * we can, and pretend finish_frame time is when we process this
-	 * event.
-	 */
-	weston_compositor_read_presentation_clock(output->base.compositor, &ts);
-	weston_output_finish_frame(&output->base, &ts, 0);
-}
-
 static char *
 make_model(struct weston_transmitter_remote *remote, int name)
 {
