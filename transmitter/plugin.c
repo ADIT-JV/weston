@@ -148,74 +148,9 @@ static const struct wthp_buffer_listener buffer_listener = {
 };
 
 static void
-surface_render_complete(struct wthp_callback *wthp_cb, uint32_t serial)
-{
-	struct weston_transmitter_surface *txs;
-	struct weston_frame_callback *cb, *cnext;
-	uint32_t frame_time;
-
-	txs = wth_object_get_user_data((struct wth_object *)wthp_cb);
-	frame_time = weston_compositor_get_time();
-	wl_list_for_each_safe(cb, cnext, &txs->frame_callback_list, link) {
-	        wl_callback_send_done(cb->resource, frame_time);
-		wl_resource_destroy(cb->resource);
-	}
-
-	wthp_callback_free(wthp_cb);
-}
-
-static const struct wthp_callback_listener callback_listener = {
-        surface_render_complete
-};
-
-static void
-transmitter_surface_commit_signal(struct wl_listener *listener, void *data)
-{
-	struct weston_transmitter_surface *txs =
-		container_of(listener, struct weston_transmitter_surface,
-			     commit_listener);
-
-	wl_list_insert_list(&txs->frame_callback_list,
-			    &txs->surface->frame_callback_list);
-	wl_list_init(&txs->surface->frame_callback_list);
-
-	wl_list_insert_list(&txs->feedback_list, &txs->surface->feedback_list);
-	wl_list_init(&txs->surface->feedback_list);
-}
-
-static void
 transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 {
 	struct weston_transmitter_remote *remote = txs->remote;
-	struct wthp_callback *cb;
-
-	if (!txs->commit_listener.notify) {
-		txs->commit_listener.notify = transmitter_surface_commit_signal;
-		wl_signal_add(&txs->surface->commit_signal, &txs->commit_listener);
-	}
-
-	if (!wl_list_empty(&txs->surface->frame_callback_list))  {
-		wl_list_insert_list(&txs->frame_callback_list,
-				    &txs->surface->frame_callback_list);
-		wl_list_init(&txs->surface->frame_callback_list);
-
-		wl_list_insert_list(&txs->feedback_list, &txs->surface->feedback_list);
-		wl_list_init(&txs->surface->feedback_list);
-	}
-
-	if (txs->remote->status != WESTON_TRANSMITTER_CONNECTION_READY ||
-	    !txs->wthp_surf ||
-	    !remote->display->running ) {
-		struct weston_frame_callback *cb, *cnext;
-		uint32_t frame_time;
-
-		frame_time = weston_compositor_get_time();
-		wl_list_for_each_safe(cb, cnext, &txs->frame_callback_list, link) {
-			wl_callback_send_done(cb->resource, frame_time);
-			wl_resource_destroy(cb->resource);
-		}
-		return;
-	}
 
 	/* TODO: transmit surface state to remote */
 	/* The buffer must be transmitted to remote side */
@@ -228,13 +163,11 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 	
 	width = 1;
 	height = 1;
-	//stride = surf->width * (PIXMAN_FORMAT_BPP(comp->read_format) / 8);
 	stride = width * (PIXMAN_FORMAT_BPP(comp->read_format) / 8);
 
 	data = malloc(stride * height);
 	data_sz = stride * height;
 
-	//weston_surface_copy_content(surf, data, data_sz, 0, 0, surf->width, surf->height);
 	/* fake sending buffer */
 	txs->wthp_buf = wthp_blob_factory_create_buffer(remote->display->blob_factory,
 							data_sz,
@@ -245,8 +178,6 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 							PIXMAN_FORMAT_BPP(comp->read_format));
 
 	wthp_buffer_set_listener(txs->wthp_buf, &buffer_listener, txs);
-	cb = wthp_surface_frame(txs->wthp_surf);
-	wthp_callback_set_listener(cb, &callback_listener, txs);
 	
 	wthp_surface_attach(txs->wthp_surf, txs->wthp_buf, txs->attach_dx, txs->attach_dy);
 	wthp_surface_damage(txs->wthp_surf, txs->attach_dx, txs->attach_dy, surf->width, surf->height);
@@ -279,11 +210,6 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 	txs->surface = NULL;
 
 	wl_list_remove(&txs->sync_output_destroy_listener.link);
-
-	if (txs->commit_listener.notify) {
-		wl_list_remove(&txs->commit_listener.link);
-		txs->commit_listener.notify = NULL;
-	}
 
 	weston_presentation_feedback_discard_list(&txs->feedback_list);
 	wl_list_for_each_safe(framecb, cnext, &txs->frame_callback_list, link)
@@ -377,17 +303,12 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 		txs->surface_destroy_listener.notify = transmitter_surface_destroyed;
 		wl_signal_add(&ws->destroy_signal, &txs->surface_destroy_listener);
 
-		txs->commit_listener.notify = transmitter_surface_commit_signal;
-		wl_signal_add(&ws->commit_signal, &txs->commit_listener);
-
 		wl_list_init(&txs->sync_output_destroy_listener.link);
 
 		wl_list_init(&txs->frame_callback_list);
 		wl_list_init(&txs->feedback_list);
-	} else if (!txs->commit_listener.notify) {
-		txs->commit_listener.notify = transmitter_surface_commit_signal;
-		wl_signal_add(&ws->commit_signal, &txs->commit_listener);
-	}
+	} 
+
 	/* TODO: create the content stream connection... */
 	if (!remote->display->compositor)
 		weston_log("remote->compositor is NULL\n");
@@ -545,7 +466,6 @@ connection_handle_data(struct watch *w, uint32_t events)
 			if (watch_ctl(&dpy->conn_watch, EPOLL_CTL_DEL, EPOLLIN | EPOLLOUT) < 0) {
 				return;
 			}
-
 			return;
 		}
 	}
@@ -856,9 +776,6 @@ transmitter_remote_destroy(struct weston_transmitter_remote *remote)
 	 * the desctruction order between the shell and Transmitter is
 	 * undefined.
 	 */
-
-	if (remote->conn_timer)
-		wl_event_source_remove(remote->conn_timer);
 
 	if (!wl_list_empty(&remote->surface_list))
 		weston_log("Transmitter warning: surfaces remain in %s.\n",

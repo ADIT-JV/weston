@@ -125,7 +125,6 @@ struct weston_transmitter_remote {
 
         struct wl_listener establish_listener;
 
-	struct wl_event_source *conn_timer; /* fake */
         struct wl_event_source *establish_timer; /* for establish connection */
 	struct wl_event_source *retry_timer; /* for retry connection */
 
@@ -144,7 +143,6 @@ struct weston_transmitter_surface {
 	struct weston_surface *surface;
 	struct wl_listener surface_destroy_listener;
 	struct wl_listener apply_state_listener;
-	struct wl_listener commit_listener;
 
 	weston_transmitter_ivi_resize_handler_t resize_handler;
 	void *resize_handler_data;

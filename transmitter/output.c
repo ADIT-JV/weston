@@ -195,27 +195,6 @@ transmitter_check_output(struct weston_transmitter_surface *txs,
 	return 0;
 }
 
-static void *
-transmitter_reset_commit_signal(struct weston_transmitter_output *output)
-{
-	struct weston_transmitter_remote *remote = output->remote;
-	struct weston_transmitter_surface *txs;
-	struct weston_frame_callback *cb, *cnext;
-	uint32_t frame_time;
-
-	wl_list_for_each(txs, &remote->surface_list, link) {
-		if (txs->commit_listener.notify) {
-			frame_time = weston_compositor_get_time();
-			wl_list_for_each_safe(cb, cnext, &txs->frame_callback_list, link) {
-				wl_callback_send_done(cb->resource, frame_time);
-				wl_resource_destroy(cb->resource);
-			}
-			wl_list_remove(&txs->commit_listener.link);
-			txs->commit_listener.notify = NULL;
-		}
-	}
-}
-
 static int
 transmitter_output_repaint(struct weston_output *base,
 			   pixman_region32_t *damage)
@@ -228,7 +207,7 @@ transmitter_output_repaint(struct weston_output *base,
 	struct weston_transmitter_surface* txs;
 	struct weston_compositor *compositor = base->compositor;
 	struct weston_view *view;
-	bool found_outut = false;
+	bool found_output = false;
 
 	if (!output->from_frame_signal)
 		return 0;
@@ -247,7 +226,7 @@ transmitter_output_repaint(struct weston_output *base,
 	wl_list_for_each_reverse(view, &compositor->view_list, link) {
 		bool found_surface = false;
 		if (view->output == &output->base) {
-			found_outut = true;
+			found_output = true;
 			wl_list_for_each(txs, &remote->surface_list, link) {
 				if (txs->surface == view->surface) {
 					found_surface = true;
@@ -255,23 +234,23 @@ transmitter_output_repaint(struct weston_output *base,
 						break;
 
 					if (!txs->wthp_surf)
-						transmitter_api->surface_push_to_remote(view->surface,
-											remote, NULL);
+						transmitter_api->surface_push_to_remote
+							(view->surface, remote, NULL);
 					transmitter_api->surface_gather_state(txs);
 					break;
 				}
 			}
 			if (!found_surface)
-				transmitter_api->surface_push_to_remote(view->surface, remote, NULL);
+				transmitter_api->surface_push_to_remote(view->surface, 
+									remote, NULL);
 		}
 	}
-	if (!found_outut)
+	if (!found_output)
 		goto out;
 
 	return 0;
 
 out:
-	transmitter_reset_commit_signal(output);
 	transmitter_start_repaint_loop(base);
 
 	return 0;
@@ -281,14 +260,12 @@ static void
 transmitter_output_enable(struct weston_output *base)
 {
 	struct weston_transmitter_output *output = to_transmitter_output(base);
-	int ret = 0;
+
 	
 	output->base.assign_planes = NULL;
 	output->base.set_backlight = NULL;
 	output->base.set_dpms = NULL;
 	output->base.switch_mode = NULL;
-	
-	return 0;
 }
 
 static void
