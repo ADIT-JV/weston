@@ -114,6 +114,8 @@ struct weston_transmitter_remote {
 	char *model;
 	char *addr;
 	char *port;
+	int32_t width;
+	int32_t height;
 
 	enum weston_transmitter_connection_status status;
 	struct wl_signal connection_status_signal;

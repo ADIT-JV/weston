@@ -48,7 +48,7 @@
 #include <waltham-connection.h>
 
 #define MAX_EPOLL_WATCHES 2
-#define ESTABLISH_CONNECTION_PERIOD 500
+#define ESTABLISH_CONNECTION_PERIOD 2000
 #define RETRY_CONNECTION_PERIOD 5000
 
 /* XXX: all functions and variables with a name, and things marked with a
@@ -357,7 +357,12 @@ conn_ready_notify(struct wl_listener *l, void *data)
 			{ NULL, NULL }
 		}
 	};
-
+	if(remote->width != 0) {
+		if(remote->height != 0) {
+			info.mode.width = remote->width;
+			info.mode.height = remote->height;
+		}
+	}
 	/* Outputs and seats are dynamic, do not guarantee they are all
 	 * present when signalling connection status.
 	 */
@@ -892,7 +897,9 @@ static int
 transmitter_create_remote(struct weston_transmitter *txr,
 			  const char *model,
 			  const char *addr,
-			  const char *port)
+			  const char *port,
+	                  const char *width,
+	                  const char *height)
 {
 	struct weston_transmitter_remote *remote;
 
@@ -905,6 +912,8 @@ transmitter_create_remote(struct weston_transmitter *txr,
 	remote->model = strdup(model);
 	remote->addr = strdup(addr);
 	remote->port = strdup(port);
+	remote->width = atoi(width);
+	remote->height = atoi(height);
 	remote->status = WESTON_TRANSMITTER_CONNECTION_INITIALIZING;
 	wl_signal_init(&remote->connection_status_signal);
 	wl_list_init(&remote->output_list);
@@ -926,6 +935,8 @@ transmitter_get_server_config(struct weston_transmitter *txr)
 	char *model = NULL;
 	char *addr = NULL;
 	char *port = NULL;
+	char *width = '0';
+	char *height = '0';
 	int ret;
 
 	section = weston_config_get_section(config, "remote", NULL, NULL);
@@ -944,12 +955,20 @@ transmitter_get_server_config(struct weston_transmitter *txr)
 								  &port, 0))
 				continue;
 
-			ret = transmitter_create_remote(txr, model, addr, port);
+			if (0 != weston_config_section_get_string(section, "width",
+								  &width, 0))
+				continue;
+
+			if (0 != weston_config_section_get_string(section, "height",
+								  &height, 0))
+				continue;
+			ret = transmitter_create_remote(txr, model, addr,
+							port, width, height);
 			if (ret < 0) {
 				weston_log("Fatal: Transmitter create_remote failed.\n");
 			}
 		}
-	} 
+	}
 }
 
 static void
