@@ -151,10 +151,17 @@ static void
 transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 {
 	struct weston_transmitter_remote *remote = txs->remote;
-
+	struct waltham_display *dpy = remote->display;
+	if(!dpy->running) {
+		if(remote->status != WESTON_TRANSMITTER_CONNECTION_DISCONNECTED) {
+			remote->status = WESTON_TRANSMITTER_CONNECTION_DISCONNECTED;
+			wl_event_source_timer_update(remote->retry_timer, 1);
+		}
+	}
+	else {
 	/* TODO: transmit surface state to remote */
 	/* The buffer must be transmitted to remote side */
-
+	
 	/* waltham */
 	struct weston_surface *surf = txs->surface;
 	struct weston_compositor *comp = surf->compositor;
@@ -187,6 +194,7 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 
 	txs->attach_dx = 0;
 	txs->attach_dy = 0;
+	}
 }
 
 /** Mark the weston_transmitter_surface dead.
@@ -665,10 +673,10 @@ establish_timer_handler(void *data)
 
 	ret = waltham_client_init(remote->display);
 	if(ret == -2) {
-		wl_event_source_timer_update(remote->establish_timer, ESTABLISH_CONNECTION_PERIOD);
+		wl_event_source_timer_update(remote->establish_timer, 
+					     ESTABLISH_CONNECTION_PERIOD);
 		return 0;
 	}
-	wl_event_source_timer_update(remote->retry_timer, RETRY_CONNECTION_PERIOD);
 	remote->status = WESTON_TRANSMITTER_CONNECTION_READY;
 	wl_signal_emit(&remote->connection_status_signal, remote);
 	return 0;
@@ -712,11 +720,13 @@ retry_timer_handler(void *data)
 		registry_handle_global_remove(dpy->registry, 1);
 		init_globals(dpy);
 		disconnect_surface(remote);
-		wl_event_source_timer_update(remote->establish_timer, ESTABLISH_CONNECTION_PERIOD);
+		wl_event_source_timer_update(remote->establish_timer, 
+					     ESTABLISH_CONNECTION_PERIOD);
 		return 0;
 	}
 	else
-		wl_event_source_timer_update(remote->retry_timer, RETRY_CONNECTION_PERIOD);
+		wl_event_source_timer_update(remote->retry_timer, 
+					     RETRY_CONNECTION_PERIOD);
 	return 0;
 }
 
