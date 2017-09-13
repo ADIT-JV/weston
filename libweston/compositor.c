@@ -318,7 +318,7 @@ weston_presentation_feedback_discard(
 	wl_resource_destroy(feedback->resource);
 }
 
-WL_EXPORT void
+static void
 weston_presentation_feedback_discard_list(struct wl_list *list)
 {
 	struct weston_presentation_feedback *feedback, *tmp;
@@ -357,7 +357,7 @@ weston_presentation_feedback_present(
 	wl_resource_destroy(feedback->resource);
 }
 
-WL_EXPORT void
+static void
 weston_presentation_feedback_present_list(struct wl_list *list,
 					  struct weston_output *output,
 					  uint32_t refresh_nsec,
