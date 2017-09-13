@@ -295,6 +295,11 @@ weston_view_create(struct weston_surface *surface)
 	return view;
 }
 
+struct weston_frame_callback {
+	struct wl_resource *resource;
+	struct wl_list link;
+};
+
 struct weston_presentation_feedback {
 	struct wl_resource *resource;
 

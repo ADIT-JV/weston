@@ -1075,11 +1075,6 @@ struct weston_view {
 	bool is_mapped;
 };
 
-struct weston_frame_callback {
-	struct wl_resource *resource;
-	struct wl_list link;
-};
-
 struct weston_surface_state {
 	/* wl_surface.attach */
 	int newly_attached;
