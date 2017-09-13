@@ -1,45 +1,84 @@
-Testing Transmitter with ivi-shell
+Transmitter plugin 
 
 The current implementation of Transmitter is a stub which interfaces to
 other Weston parts appropriately, but all networking is just a mockup.
 
+Sections in this file describe:
+- How to build
+- How to write weston.ini
+- How to test
 
+How to build
+============
 Configure Weston with --enable-surface-remoting to build the Transmitter
 plugin.
 
-In weston.ini, add 'transmitter.so' to the 'modules' key under '[core]', and
-make sure the 'shell' is 'ivi-shell.so'. Follow the ivi-shell example
-weston.ini for everything else.
+How to write weston.ini
+=======================
+To load transmitter plugin to weston, add 'transmitter.so' to the 'modules' 
+key under '[core]', and make sure the 'shell' is 'ivi-shell.so'. 
 
-When you start weston, the log should contain something like this:
+The destination of remoting is configured in weston.ini.
+Add output name, server address, port number, output's width and height key
+under '[remote-output]'.
+You can speficy multiple [remote-output].
 
-[13:13:54.799] Loading module '/home/pq/local/lib/weston/ivi-shell.so'
-[13:13:54.799] launching '/home/pq/local/libexec/weston-keyboard'
-[13:13:54.799] Loading module '/home/pq/local/lib/weston/hmi-controller.so'
-[13:13:54.799] Loading module '/home/pq/local/lib/weston/transmitter.so'
-[13:13:54.799] Registered plugin API 'transmitter_v1' of size 48
-[13:13:54.799] Registered plugin API 'transmitter_ivi_v1' of size 16
-[13:13:54.799] Transmitter initialized.
-[13:13:54.799] ivi-layout: Transmitter enabled.
-[13:13:54.799] launching '/home/pq/build/weston/weston-ivi-shell-user-interface'
-[13:13:54.799] hmi-controller: Transmitter enabled.
-[13:13:54.799] Transmitter connecting to 0.0.0.0:66...
-[13:13:55.800] Transmitter connected to 0.0.0.0:66.
-[13:13:55.800] hmi-controller: connection status 0
-[13:13:55.800] Transmitter created output 'transmitter-0.0.0.0:66-1': Weston-Transmitter, transmitter-0.0.0.0:66-1, 0
-[13:13:55.800] Transmitter created seat=0x1c37bd0 'transmitter-0.0.0.0:66-default'
-[13:13:55.800] Transmitter created pointer=0x1c38430 for seat 0x1c37bd0
-[13:13:55.800] transmitter_start_repaint_loop(transmitter-0.0.0.0:66-1)
+In details, see 'weston.ini.transmitter'.
 
+How to test
+===========
+You can use server side test application in waltham repository.
 
-If you have edited a client to have ivi-id >= 0xfaa01000, when you start that
-client it should be "remoted" automatically and not appear on screen.
+If you set 'WALTHAM_DEBUG=1' to your environment valuable, you can
+see the log like this:
 
-You can also manually start remoting:
+ [06:12:41.238] Loading module '/usr/lib64/weston/ivi-shell.so'
+ [06:12:41.245] launching '/usr/libexec/weston-keyboard'
+ [06:12:41.247] Loading module '/usr/lib64/weston/ivi-controller.so'
+ [06:12:41.252] Loading module '/usr/lib64/weston/ivi-input-controller.so'
+ [06:12:41.253] ivi-input-controller module loaded successfully!
+ [06:12:41.255] Loading module '/usr/lib64/weston/transmitter.so'
+ [06:12:41.260] Registered plugin API 'transmitter_v1' of size 88
+ [06:12:41.260] Registered plugin API 'transmitter_ivi_v1' of size 16
+ [06:12:41.260] Transmitter initialized.
+ [06:12:41.260] ivi-layout: Transmitter enabled.
+ [06:12:41.260] Transmitter weston_seat 0x14f8010
+ [06:12:41.260] Transmitter created pointer=0x139a440 for seat 0x14f8010
+ [06:12:41.261] Transmitter created keyboard=0x14f8160 for seat 0x14f8010
+ [06:12:41.261] Transmitter created touch=0x1508750 for seat 0x14f8010
+
+The connection is established, you can see following debug messages:
+
+ root@gr-mrb-64:~# debug: wth_connection_insert_new_object: new object id: 1
+ debug: wth_connection_insert_new_object: new object id: 2
+ 2017-07-19T06:14:31Z 00001000030000000100000002000000 wth_display_get_registry
+ debug: wth_connection_insert_new_object: new object id: 3
+ 2017-07-19T06:14:31Z 00001000020000000100000003000000 wth_display_sync
+ debug: Message received on conn 0x1560340: (9) 40 bytes
+ debug: wthp_registry_send_global(2, 1, [variable type const char *], 4) (opcode 9) called.
+ debug: wth_connection_insert_new_object: new object id: 4
+ 2017-07-19T06:14:31Z 00002c000800000002000000010000000400000010000000777468705f636f6d706f7369746f720001000000 wthp_registry_bind
+ debug: Message received on conn 0x1560340: (9) 44 bytes
+ debug: wthp_registry_send_global(2, 1, [variable type const char *], 4) (opcode 9) called.
+ debug: wth_connection_insert_new_object: new object id: 5
+ 2017-07-19T06:14:31Z 000030000800000002000000010000000500000012000000777468705f626c6f625f666163746f72790001000000 wthp_registry_bind
+ debug: Message received on conn 0x1560340: (9) 48 bytes
+ debug: wthp_registry_send_global(2, 1, [variable type const char *], 1) (opcode 9) called.
+ debug: wth_connection_insert_new_object: new object id: 6
+ 2017-07-19T06:14:31Z 000034000800000002000000010000000600000015000000777468705f6976695f6170706c69636174696f6e0001000000 wthp_registry_bind
+ debug: Message received on conn 0x1560340: (11) 16 bytes
+ debug: wthp_callback_send_done(3, 0) (opcode 11) called.
+ sending wth_display.sync...
+ debug: wth_connection_insert_new_object: new object id: 7
+ 2017-07-19T06:14:31Z 00001000020000000100000007000000 wth_display_sync
+ debug: Message received on conn 0x1560340: (11) 16 bytes
+ debug: wthp_callback_send_done(7, 0) (opcode 11) called.
+ ...sync done.
+
+Start remoting :
 - Start an IVI application.
-- Move pointer onto the application window.
-- Press Mod+Shift+space, and then 'k'.
-- The window should disappear.
+- Put surface on backend output
+- Put surface on transmitter output
 
 Weston log will indicate remoting has started:
 
@@ -48,6 +87,3 @@ Weston log will indicate remoting has started:
 [13:18:24.572] transmitter_surface_set_ivi_id(0x1c3dad0, 0x9ff6)
 [13:18:24.972] Transmitter: surface 0x1c3dad0 entered output transmitter-0.0.0.0:66-1
 
-Once remoting has started, the mockup code will generate fake pointer input for
-the window. This can be seen with e.g. weston-eventdemo, or running an
-application with WAYLAND_DEBUG=client.
