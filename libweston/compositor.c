@@ -994,47 +994,8 @@ weston_surface_assign_output(struct weston_surface *es)
 	}
 	pixman_region32_fini(&region);
 
-	if (es->forced_output) {
-		es->output = es->forced_output;
-		mask |= 1u << es->forced_output->id;
-	} else {
-		es->output = new_output;
-	}
-
+	es->output = new_output;
 	weston_surface_update_output_mask(es, mask);
-}
-
-/** Force the surface to sync to a particular output
- *
- * \param surface The surface to modify.
- * \param output The output to lock onto, or NULL to return to normal
- * behaviour.
- *
- * Permanently assigns the surface to be synchorized to the given output.
- * weston_surface_assign_output() or weston_view_assign_output() cannot change
- * this, the weston_surface::output will remain as given here if not NULL.
- *
- * A non-NULL output is written to weston_surface::output.
- *
- * Setting a NULL output causes weston_surface::output to be recomputed from
- * the surface's views.
- *
- * Changes in output assignments are broadcast to the client immediately.
- *
- * It is the responsibility of the caller to hook up to the destruction of
- * the output and ensure that the surface does not remain assigned to a
- * destroyed output.
- *
- * Forcing a non-NULL output also forces weston_surface_is_mapped() to return
- * true.
- */
-WL_EXPORT void
-weston_surface_force_output(struct weston_surface *surface,
-			    struct weston_output *output)
-{
-	surface->forced_output = output;
-
-	weston_surface_assign_output(surface);
 }
 
 /** Recalculate which output(s) the view is displayed on
