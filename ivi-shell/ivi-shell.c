@@ -132,19 +132,17 @@ ivi_shell_surface_committed(struct weston_surface *surface,
 	if (!ivisurf)
 		return;
 
-	assert(ivisurf->layout_surface);
+	if (surface->width == 0 || surface->height == 0)
+		return;
 
-	if ((ivisurf->width != surface->width ||
-	     ivisurf->height != surface->height) &&
-	     surface->width != 0 && surface->height != 0) {
+	if (ivisurf->width != surface->width ||
+	     ivisurf->height != surface->height) {
 		ivisurf->width  = surface->width;
 		ivisurf->height = surface->height;
 
 		ivi_layout_surface_configure(ivisurf->layout_surface,
 					     surface->width, surface->height);
 	}
-
-	ivi_layout_surface_update(ivisurf->layout_surface, sx, sy);
 }
 
 static int

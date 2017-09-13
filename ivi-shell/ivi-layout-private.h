@@ -61,14 +61,6 @@ struct ivi_layout_surface {
 	} pending;
 
 	struct wl_list view_list;	/* ivi_layout_view::surf_link */
-
-	struct {
-		struct wl_list link;
-		struct wl_list layer_list;
-	} order;
-
-	struct weston_transmitter_surface *txs;
-	struct wl_listener stream_listener;
 };
 
 struct ivi_layout_layer {
@@ -128,7 +120,6 @@ struct ivi_layout {
 	const struct weston_transmitter_api *txr_api;
 	const struct weston_transmitter_ivi_api *txr_ivi_api;
 	struct weston_transmitter *transmitter;
-	struct wl_signal stream_status_signal;
 	struct wl_listener connected_listener;
 };
 
