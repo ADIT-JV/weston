@@ -83,47 +83,6 @@ transmitter_surface_ivi_resize(struct weston_transmitter_surface *txs,
 	txs->resize_handler(txs->resize_handler_data, width, height);
 }
 
-static int
-frame_callback_handler(void *data) /* fake */
-{
-	struct weston_transmitter_surface *txs = data;
-	struct weston_frame_callback *cb, *cnext;
-	struct weston_output *output;
-	struct weston_compositor *compositor;
-	uint32_t frame_time;
-	uint32_t presented_flags;
-	int32_t refresh_nsec;
-	struct timespec stamp;
-
-	compositor = txs->remote->transmitter->compositor;
-	output = txs->sync_output;
-
-	/* wl_surface.enter should arrive before any frame callbacks,
-	 * but remote might send frame callbacks for non-visible too.
-	 */
-	if (!output)
-		return 0;
-
-	/* XXX: eeeew */
-	frame_time = weston_compositor_get_time();
-
-	wl_list_for_each_safe(cb, cnext, &txs->frame_callback_list, link) {
-		wl_callback_send_done(cb->resource, frame_time);
-		wl_resource_destroy(cb->resource);
-	}
-
-	presented_flags = 0;
-	refresh_nsec = millihz_to_nsec(output->current_mode->refresh);
-	/* XXX: waaahhhahaa */
-	weston_compositor_read_presentation_clock(compositor, &stamp);
-	weston_presentation_feedback_present_list(&txs->feedback_list,
-						  output, refresh_nsec, &stamp,
-						  output->msc,
-						  presented_flags);
-
-	return 0;
-}
-
 static void
 transmitter_surface_configure(struct weston_transmitter_surface *txs,
 			      int32_t dx, int32_t dy)
@@ -206,7 +165,6 @@ transmitter_surface_gather_state(struct weston_transmitter_surface *txs)
 static void
 transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 {
-	struct weston_frame_callback *framecb, *cnext;
 	struct weston_transmitter_remote *remote;
 	/* may be called multiple times */
 	if (!txs->surface)
@@ -218,10 +176,6 @@ transmitter_surface_zombify(struct weston_transmitter_surface *txs)
 	txs->surface = NULL;
 
 	wl_list_remove(&txs->sync_output_destroy_listener.link);
-
-	weston_presentation_feedback_discard_list(&txs->feedback_list);
-	wl_list_for_each_safe(framecb, cnext, &txs->frame_callback_list, link)
-		wl_resource_destroy(framecb->resource);
 
 	remote = txs->remote;
 	if (!remote->display->compositor)
