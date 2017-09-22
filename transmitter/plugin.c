@@ -278,7 +278,6 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 		weston_log("txs->wthp_surf is NULL\n");
 		txs->wthp_surf = wthp_compositor_create_surface(remote->display->compositor);
 		wl_signal_emit(&txr->connected_signal, txs);
-
 	}
 
 	return txs;
@@ -396,6 +395,7 @@ connection_handle_data(struct watch *w, uint32_t events)
 	struct weston_transmitter_remote *remote = dpy->remote;
 	int ret;
 
+
 	if (!dpy->running) {
 		weston_log("This server is not running yet. %s:%s\n", remote->addr, remote->port);
 		return;
@@ -459,41 +459,42 @@ waltham_mainloop(void *data)
 
 	while (1) {
 		running_display = 0;
-
+		pthread_mutex_lock(&txr->txr_mutex);
 		wl_list_for_each(remote, &txr->remote_list, link) {
 			struct waltham_display *dpy = remote->display;
 			if (!dpy)
 				continue;
-
 			if (!dpy->connection)
 				continue;
-
 			if (!dpy->running)
 				continue;
-
 			running_display++;
 			/* Dispatch queued events. */
+			pthread_mutex_lock(&dpy->mutex);
 			ret = wth_connection_dispatch(dpy->connection);
 			if (ret < 0)
 				dpy->running = false;
-                
 			if (!dpy->running)
 				continue;
-
+			pthread_mutex_unlock(&dpy->mutex);
 			/* Run any application idle tasks at this point. */
 			/* (nothing to run so far) */
 
 			/* Flush out buffered requests. If the Waltham socket is
 			 * full, poll it for writable too, and continue flushing then.
 			 */
+			pthread_mutex_lock(&dpy->mutex);
 			ret = wth_connection_flush(dpy->connection);
 			if (ret < 0 && errno == EAGAIN) {
 				watch_ctl(&dpy->conn_watch, EPOLL_CTL_MOD, EPOLLIN | EPOLLOUT);
 			} else if (ret < 0) {
 				perror("Connection flush failed");
+				pthread_mutex_unlock(&dpy->mutex);
 				break;
 			}
+			pthread_mutex_unlock(&dpy->mutex);
 		}
+		pthread_mutex_unlock(&txr->txr_mutex);
 
 		if (0 < running_display) {
 			/* Wait for events or signals */
@@ -510,7 +511,9 @@ waltham_mainloop(void *data)
 			 */
 			for (i = 0; i < count; i++) {
 				w = ee[i].data.ptr;
+				pthread_mutex_lock(&w->display->mutex);
 				w->cb(w, ee[i].events);
+				pthread_mutex_unlock(&w->display->mutex);
 			}
 		}
 	}
@@ -532,6 +535,8 @@ static const struct wthp_callback_listener bling_listener = {
 static int
 waltham_client_init(struct waltham_display *dpy)
 {
+	pthread_mutex_init(&dpy->mutex, NULL);
+
 	if (!dpy)
 		return -1;
 	/*
@@ -615,7 +620,6 @@ init_globals(struct waltham_display *dpy)
 	dpy->pointer = NULL;
 	dpy->keyboard = NULL;
 	dpy->touch = NULL;
-
 }
 
 static void
@@ -639,12 +643,14 @@ retry_timer_handler(void *data)
 
 	if(!dpy->running)
 	{
+		pthread_mutex_lock(&dpy->mutex);
 		remote->status = WESTON_TRANSMITTER_CONNECTION_DISCONNECTED;
 		registry_handle_global_remove(dpy->registry, 1);
 		init_globals(dpy);
 		disconnect_surface(remote);
 		wl_event_source_timer_update(remote->establish_timer, 
 					     ESTABLISH_CONNECTION_PERIOD);
+		pthread_mutex_unlock(&dpy->mutex);
 		return 0;
 	}
 	else
@@ -753,7 +759,9 @@ transmitter_compositor_destroyed(struct wl_listener *listener, void *data)
 	 * transmitter_remote_destroy() accessing freed memory if the shell
 	 * cleans up after Transmitter.
 	 */
+	pthread_mutex_lock(&txr->txr_mutex);
 	wl_list_remove(&txr->remote_list);
+	pthread_mutex_unlock(&txr->txr_mutex);
 
 	free(txr);
 }
@@ -828,8 +836,6 @@ transmitter_surface_set_ivi_id(struct weston_transmitter_surface *txs,
 	if(!txs->wthp_ivi_surface){
 		weston_log("Failed to create txs->ivi_surf\n");
 	}
-         
-	weston_log("%s(%p, %#x)\n", __func__, txs->surface, ivi_id);
 }
 
 static void
@@ -985,6 +991,7 @@ wet_module_init(struct weston_compositor *compositor, int *argc, char *argv[])
 	loop = wl_display_get_event_loop(compositor->wl_display);
 	wl_event_loop_add_idle(loop, transmitter_post_init, txr);
 
+	pthread_mutex_init(&txr->txr_mutex, NULL);
 
 	return 0;
 
