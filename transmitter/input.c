@@ -540,7 +540,7 @@ void
 transmitter_seat_pointer_axis_source(struct weston_transmitter_seat *seat,
 				     uint32_t axis_source)
 {
-	assert(!"TODO");
+	/* ToDo : implement axis event handling */
 }
 
 void
@@ -548,7 +548,7 @@ transmitter_seat_pointer_axis_stop(struct weston_transmitter_seat *seat,
 				   uint32_t time,
 				   uint32_t axis)
 {
-	assert(!"TODO");
+	/* ToDo : implement axis event handling */
 }
 
 void
@@ -556,7 +556,7 @@ transmitter_seat_pointer_axis_discrete(struct weston_transmitter_seat *seat,
 				       uint32_t axis,
 				       int32_t discrete)
 {
-	assert(!"TODO");
+	/* ToDo : implement axis event handling */
 }
 
 static void
@@ -792,8 +792,6 @@ transmitter_seat_destroy(struct weston_transmitter_seat *seat)
 
 	weston_log("Transmitter destroy seat=%p\n", seat->base);
 
-//	weston_seat_release(&seat->base);
-
 	wl_list_remove(&seat->get_pointer_listener.link);
 	wl_list_remove(&seat->pointer_focus_destroy_listener.link);
 
@@ -916,14 +914,14 @@ pointer_handle_axis(struct wthp_pointer *wthp_pointer,
 static void
 pointer_handle_frame(struct wthp_pointer *wthp_pointer)
 {
-	weston_log("pointer_handle_frame\n");
+	/* ToDo : implement pointer handle frame */
 }
 
 static void
 pointer_handle_axis_source(struct wthp_pointer *wthp_pointer,
 			   uint32_t axis_source)
 {
-	weston_log("pointer_handle_axis_source\n");
+	/* ToDo : implement pointer handle axis source */
 }
 
 static void
@@ -931,7 +929,7 @@ pointer_handle_axis_stop(struct wthp_pointer *wthp_pointer,
 			 uint32_t time,
 			 uint32_t axis)
 {
-	weston_log("pointer_handle_axis_stop\n");
+	/* ToDo : implement pointer handle axis stop */
 }
 
 static void
@@ -939,7 +937,7 @@ pointer_handle_axis_discrete(struct wthp_pointer *wthp_pointer,
 			     uint32_t axis,
 			     int32_t discrete)
 {
-	weston_log("pointer_handle_axis_discrete\n");
+	/* ToDo : implement pointer handle axis discrete */
 }
 
 static const struct wthp_pointer_listener pointer_listener = {
@@ -960,7 +958,7 @@ keyboard_handle_keymap(struct wthp_keyboard * wthp_keyboard,
 	uint32_t keymap_sz,
 	void * keymap)
 {
-	weston_log("keyboard_handle_keymap\n");
+	/* ToDo : implement keyboard handle keymap */
 }
 
 static void
@@ -975,16 +973,23 @@ keyboard_handle_enter(struct wthp_keyboard *wthp_keyboard,
 	struct wl_list *seat_list = &remote->seat_list;
 	struct weston_transmitter_seat *seat;
 	struct weston_transmitter_surface *txs;
+	struct wl_array *wl_key = (struct wl_array *)malloc(sizeof(struct wl_array));
 
+	wl_key->size = keys->size;
+	wl_key->alloc = keys->alloc;
+	wl_key->data = keys->data;
+	
 	seat = container_of(seat_list->next,
 	struct weston_transmitter_seat, link);
 
 	wl_list_for_each(txs, &remote->surface_list, link)
 	{
 		if (txs->wthp_surf == surface) {
-			transmitter_seat_keyboard_enter(seat, serial, txs, keys);
+			//transmitter_seat_keyboard_enter(seat, serial, txs, keys);
+			transmitter_seat_keyboard_enter(seat, serial, txs, wl_key);
 		}
 	}
+	free(wl_key);
 }
 
 static void
@@ -1226,7 +1231,7 @@ transmitter_remote_create_seat(struct weston_transmitter_remote *remote)
 	}
 
 	free(name);
-#if 0
+#if DEBUG
 	weston_seat_init(&seat->base, remote->transmitter->compositor, name);
 	free(name);
 
