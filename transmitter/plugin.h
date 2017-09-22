@@ -36,6 +36,7 @@
 
 #include "compositor.h"
 #include "transmitter_api.h"
+#include "ivi-shell/ivi-layout-export.h"
 
 #include <waltham-client.h>
 
@@ -150,6 +151,7 @@ struct weston_transmitter_surface {
 	struct weston_surface *surface;
 	struct wl_listener surface_destroy_listener;
 	struct wl_listener apply_state_listener;
+	const struct ivi_layout_interface *lyt;
 
 	weston_transmitter_ivi_resize_handler_t resize_handler;
 	void *resize_handler_data;
@@ -228,6 +230,24 @@ struct weston_transmitter_seat {
 
 	/* touch */
 	struct weston_transmitter_surface *touch_focus;
+};
+
+struct ivi_layout_surface {
+	struct wl_list link;	/* ivi_layout::surface_list */
+	struct wl_signal property_changed;
+	int32_t update_count;
+	uint32_t id_surface;
+
+	struct ivi_layout *layout;
+	struct weston_surface *surface;
+
+	struct ivi_layout_surface_properties prop;
+
+	struct {
+		struct ivi_layout_surface_properties prop;
+	} pending;
+
+	struct wl_list view_list;	/* ivi_layout_view::surf_link */
 };
 
 void

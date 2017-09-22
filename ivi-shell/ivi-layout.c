@@ -67,7 +67,7 @@
 #include "ivi-layout-export.h"
 #include "ivi-layout-private.h"
 #include "ivi-layout-shell.h"
-#include "transmitter/transmitter_api.h"
+#include "plugin-registry.h"
 
 #include "shared/helpers.h"
 #include "shared/os-compatibility.h"
@@ -2115,50 +2115,6 @@ ivi_layout_surface_create(struct weston_surface *wl_surface,
 	return ivisurf;
 }
 
-static void
-surface_connected_handler(struct wl_listener *listener, void *data)
-{
-	struct ivi_layout *il =
-		wl_container_of(listener, il, connected_listener);
-	struct weston_transmitter_surface *txs = data;
-	struct weston_surface *ws;
-	struct ivi_layout_surface *ivisurf;
-
-	ws = il->txr_api->get_weston_surface(txs);
-
-	wl_list_for_each(ivisurf, &il->surface_list, link) {
-		if (ivisurf->surface == ws) {
-			il->txr_ivi_api->set_ivi_id(txs,
-						    ivisurf->id_surface);
-		}
-	}
-}
-
-static void
-ivi_layout_post_init(void *data)
-{
-	struct ivi_layout *il = data;
-
-	il->transmitter = NULL;
-	il->txr_api = weston_get_transmitter_api(il->compositor);
-	il->txr_ivi_api = weston_get_transmitter_ivi_api(il->compositor);
-	if (il->txr_api && il->txr_ivi_api)
-		il->transmitter = il->txr_api->transmitter_get(il->compositor);
-
-	if (!il->transmitter) {
-		weston_log("ivi-layout: Transmitter disabled (txr: %s, ivi: %s)\n",
-			   il->txr_api ? "yes" : "no",
-			   il->txr_ivi_api ? "yes" : "no");
-		il->txr_ivi_api = NULL;
-		il->txr_api = NULL;
-	} else {
-		weston_log("ivi-layout: Transmitter enabled.\n");
-		il->connected_listener.notify = surface_connected_handler;
-		il->txr_api->register_connection_status(il->transmitter,
-							&il->connected_listener);
-	}
-}
-
 void
 ivi_layout_init_with_compositor(struct weston_compositor *ec)
 {
@@ -2200,9 +2156,6 @@ ivi_layout_init_with_compositor(struct weston_compositor *ec)
 
 	layout->transitions = ivi_layout_transition_set_create(ec);
 	wl_list_init(&layout->pending_transition_list);
-
-	loop = wl_display_get_event_loop(ec->wl_display);
-	wl_event_loop_add_idle(loop, ivi_layout_post_init, layout);
 }
 
 static struct ivi_layout_interface ivi_layout_interface = {
@@ -2314,6 +2267,9 @@ load_controller_modules(struct weston_compositor *compositor, const char *module
 		while (*p == ',')
 			p++;
 	}
+
+	weston_plugin_api_register(compositor, IVI_LAYOUT_API_NAME,
+				   &ivi_layout_interface,  sizeof(struct ivi_layout_interface));
 
 	return 0;
 }

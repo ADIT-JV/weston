@@ -38,6 +38,8 @@
 #include "compositor/weston.h"
 #include "plugin.h"
 #include "transmitter_api.h"
+#include "plugin-registry.h"
+#include "ivi-shell/ivi-layout-export.h"
 
 /* waltham */
 #include <errno.h>
@@ -225,6 +227,51 @@ sync_output_destroy_handler(struct wl_listener *listener, void *data)
 	weston_surface_force_output(txs->surface, NULL);
 }
 
+static void
+transmitter_surface_set_ivi_id(struct weston_transmitter_surface *txs)
+{
+        struct weston_transmitter_remote *remote = txs->remote;
+	struct waltham_display *dpy = remote->display;
+	struct weston_surface *ws;
+	struct ivi_layout_surface **pp_surface = NULL;
+	struct ivi_layout_surface *ivi_surf = NULL;
+	int32_t surface_length = 0;
+	int32_t ret = 0;
+	int32_t i = 0;
+
+	ret = txs->lyt->get_surfaces(&surface_length, &pp_surface);
+	if(!ret)
+		weston_log("No ivi_surface\n");
+
+	ws = txs->surface;
+
+	for(i = 0; i < surface_length; i++) {
+		ivi_surf = pp_surface[i];
+		if (ivi_surf->surface == ws) {
+			assert(txs->surface);
+			if (!txs->surface)
+				return;
+			if(!dpy)
+				weston_log("no content in waltham_display\n");
+			if(!dpy->compositor)
+				weston_log("no content in compositor object\n");
+			if(!dpy->seat)
+				weston_log("no content in seat object\n");
+			if(!dpy->application)
+				weston_log("no content in ivi-application object\n");
+			
+			txs->wthp_ivi_surface = wthp_ivi_application_surface_create
+				(dpy->application, ivi_surf->id_surface,  txs->wthp_surf);
+			weston_log("surface ID %d\n", ivi_surf->id_surface);
+			if(!txs->wthp_ivi_surface){
+				weston_log("Failed to create txs->ivi_surf\n");
+			}
+		}
+	}
+	free(pp_surface);
+	pp_surface = NULL;
+}
+
 static struct weston_transmitter_surface *
 transmitter_surface_push_to_remote(struct weston_surface *ws,
 				   struct weston_transmitter_remote *remote,
@@ -269,7 +316,10 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 
 		wl_list_init(&txs->frame_callback_list);
 		wl_list_init(&txs->feedback_list);
-	} 
+
+		txs->lyt = weston_plugin_api_get(txr->compositor, 
+						 "ivi_layout_api_name", sizeof(txs->lyt));
+	}
 
 	/* TODO: create the content stream connection... */
 	if (!remote->display->compositor)
@@ -277,7 +327,7 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 	if (!txs->wthp_surf) {
 		weston_log("txs->wthp_surf is NULL\n");
 		txs->wthp_surf = wthp_compositor_create_surface(remote->display->compositor);
-		wl_signal_emit(&txr->connected_signal, txs);
+		transmitter_surface_set_ivi_id(txs);
 	}
 
 	return txs;
@@ -812,33 +862,6 @@ static const struct weston_transmitter_api transmitter_api_impl = {
 };
 
 static void
-transmitter_surface_set_ivi_id(struct weston_transmitter_surface *txs,
-			       uint32_t ivi_id)
-{
-        struct weston_transmitter_remote *remote = txs->remote;
-	struct waltham_display *dpy = remote->display;
-	
-	assert(txs->surface);
-	if (!txs->surface)
-		return;
-	if(!dpy)
-		weston_log("no content in waltham_display\n");
-	if(!dpy->compositor)
-		weston_log("no content in compositor object\n");
-	if(!dpy->seat)
-		weston_log("no content in seat object\n");
-
-	if(!dpy->application)
-		weston_log("no content in ivi-application object\n");
-
-	txs->wthp_ivi_surface = wthp_ivi_application_surface_create(dpy->application,
-							  ivi_id,  txs->wthp_surf);
-	if(!txs->wthp_ivi_surface){
-		weston_log("Failed to create txs->ivi_surf\n");
-	}
-}
-
-static void
 transmitter_surface_set_resize_callback(
 	struct weston_transmitter_surface *txs,
 	weston_transmitter_ivi_resize_handler_t cb,
@@ -849,7 +872,6 @@ transmitter_surface_set_resize_callback(
 }
 
 static const struct weston_transmitter_ivi_api transmitter_ivi_api_impl = {
-	transmitter_surface_set_ivi_id,
 	transmitter_surface_set_resize_callback,
 };
 
@@ -964,7 +986,6 @@ wet_module_init(struct weston_compositor *compositor, int *argc, char *argv[])
 	txr->compositor = compositor;
 	txr->compositor_destroy_listener.notify =
 		transmitter_compositor_destroyed;
-	wl_signal_init(&txr->connected_signal);
 	wl_signal_add(&compositor->destroy_signal,
 		      &txr->compositor_destroy_listener);
 
