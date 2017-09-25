@@ -318,7 +318,7 @@ transmitter_surface_push_to_remote(struct weston_surface *ws,
 		wl_list_init(&txs->feedback_list);
 
 		txs->lyt = weston_plugin_api_get(txr->compositor, 
-						 "ivi_layout_api_name", sizeof(txs->lyt));
+						 IVI_LAYOUT_API_NAME, sizeof(txs->lyt));
 	}
 
 	/* TODO: create the content stream connection... */
