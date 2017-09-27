@@ -55,8 +55,13 @@ struct vm_buffer_info {
 	int32_t offset[3];
 	int32_t bpp;
 	int32_t tile_format;
+	int32_t rotation;
 	int32_t status;
-	unsigned long ggtt_offset;
+	int32_t counter;
+	union {
+		unsigned long hyper_dmabuf_id;
+		unsigned long ggtt_offset;
+	};
 	char surface_name[SURFACE_NAME_LENGTH];
 };
 

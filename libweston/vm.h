@@ -41,6 +41,7 @@ struct gr_buffer_ref {
 	struct wl_listener buffer_destroy_listener;
 	struct wl_list elm;
 	int cleanup_required;
+	struct weston_surface* surface;
 };
 
 struct gl_renderer;

@@ -179,6 +179,8 @@ struct gl_surface_state {
 
 	struct wl_listener surface_destroy_listener;
 	struct wl_listener renderer_destroy_listener;
+
+	int frame_count;
 };
 
 struct gl_renderer {
@@ -2058,6 +2060,8 @@ gl_renderer_attach(struct weston_surface *es, struct weston_buffer *buffer)
 		gs->buffer_type = BUFFER_TYPE_NULL;
 		gs->y_inverted = 1;
 	}
+
+	gs->frame_count++;
 }
 
 static void
@@ -3553,7 +3557,8 @@ static void print_vm_buf_list(struct gl_renderer *gr)
 }
 
 static void vm_add_buf(struct weston_compositor *ec, struct gl_renderer *gr,
-		struct gl_surface_state *gs, struct weston_buffer *buffer)
+		struct gl_surface_state *gs, struct weston_buffer *buffer,
+		struct weston_surface *surface)
 {
 	struct vm_buffer_table *vbt = gr->vm_buffer_table;
 	struct gr_buffer_ref *gr_buffer_ref_ptr;
@@ -3563,14 +3568,21 @@ static void vm_add_buf(struct weston_compositor *ec, struct gl_renderer *gr,
 		gr_buffer_ref_ptr = zalloc(sizeof(struct gr_buffer_ref));
 		gr_buffer_ref_ptr->buffer = buffer;
 		gr_buffer_ref_ptr->gr = gr;
+		gr_buffer_ref_ptr->surface = surface;
 		gr_buffer_ref_ptr->buffer_destroy_listener.notify =
 				gr_buffer_destroy_handler;
 		buffer->priv_buffer = gr_buffer_ref_ptr;
+		wl_list_init(&gr_buffer_ref_ptr->elm);
 		wl_signal_add(&buffer->destroy_signal,
 				&gr_buffer_ref_ptr->buffer_destroy_listener);
 	} else {
 		gr_buffer_ref_ptr = buffer->priv_buffer;
 	}
+
+	/* a surface may use multiple buffers, so it isn't ok to just increment the
+	 * buffer's counter. Instead, make sure that the buffer we're about to show
+	 * share has the surface's up-to-date frame count */
+	gr_buffer_ref_ptr->vm_buffer_info.counter = gs->frame_count;
 
 	gr_buffer_ref_ptr->cleanup_required = 1;
 	wl_list_insert(&vbt->vm_buffer_info_list, &gr_buffer_ref_ptr->elm);
@@ -3599,6 +3611,9 @@ static void vm_add_buf(struct weston_compositor *ec, struct gl_renderer *gr,
 		ec->renderer->fill_surf_name(gs->surface, SURFACE_NAME_LENGTH - 1,
 				gr_buffer_ref_ptr->vm_buffer_info.surface_name);
 	}
+
+	/* It is always 0. Rotation is not required */
+	gr_buffer_ref_ptr->vm_buffer_info.rotation = 0;
 
 	//print_vm_buf_list(gr);
 
@@ -3652,7 +3667,7 @@ static int vm_table_draw(struct weston_output *output, struct gl_output_state *g
 		if (io->enable_surface_share && view->plane == &ec->primary_plane) {
 			gs = get_surface_state(view->surface);
 			if(gs->buffer_ref.buffer) {
-				vm_add_buf(ec, gr, gs, gs->buffer_ref.buffer);
+				vm_add_buf(ec, gr, gs, gs->buffer_ref.buffer, view->surface);
 			}
 		}
 	}
