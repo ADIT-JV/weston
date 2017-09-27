@@ -67,6 +67,7 @@
 #include "ivi-layout-export.h"
 #include "ivi-layout-private.h"
 #include "ivi-layout-shell.h"
+#include "plugin-registry.h"
 
 #include "shared/helpers.h"
 #include "shared/os-compatibility.h"
@@ -2265,6 +2266,9 @@ load_controller_modules(struct weston_compositor *compositor, const char *module
 		while (*p == ',')
 			p++;
 	}
+
+	weston_plugin_api_register(compositor, IVI_LAYOUT_API_NAME,
+				   &ivi_layout_interface,  sizeof(struct ivi_layout_interface));
 
 	return 0;
 }

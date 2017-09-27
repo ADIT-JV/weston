@@ -63,6 +63,8 @@ extern "C" {
 #define IVI_SUCCEEDED (0)
 #define IVI_FAILED (-1)
 
+#define IVI_LAYOUT_API_NAME "ivi_layout_api_v1"
+
 struct ivi_layout_layer;
 struct ivi_layout_screen;
 struct ivi_layout_surface;
