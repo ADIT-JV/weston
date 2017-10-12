@@ -826,6 +826,7 @@ x11_output_enable(struct weston_output *base)
 		XCB_EVENT_MASK_STRUCTURE_NOTIFY,
 		0
 	};
+	output->base.output_type = OUTPUT_X11;
 
 	if (!b->no_input)
 		values[0] |=

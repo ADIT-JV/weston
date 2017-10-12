@@ -146,9 +146,21 @@ enum dpms_enum {
 	WESTON_DPMS_OFF
 };
 
+/* bit compatible with drm definitions. */
+enum output_type {
+	OUTPUT_DRM,
+	OUTPUT_FBDEV,
+	OUTPUT_HEADLESS,
+	OUTPUT_RDP,
+	OUTPUT_WAYLAND,
+	OUTPUT_X11,
+	OUTPUT_WALTHAM
+};
+
 struct weston_output {
 	uint32_t id;
 	char *name;
+	enum output_type output_type;
 
 	void *renderer_state;
 

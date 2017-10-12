@@ -433,6 +433,7 @@ fbdev_output_enable(struct weston_output *base)
 	int fb_fd;
 	struct wl_event_loop *loop;
 
+	output->base.output_type = OUTPUT_FBDEV;
 	/* Create the frame buffer. */
 	fb_fd = fbdev_frame_buffer_open(output, output->device, &output->fb_info);
 	if (fb_fd < 0) {

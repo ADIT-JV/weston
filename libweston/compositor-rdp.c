@@ -519,6 +519,7 @@ rdp_output_enable(struct weston_output *base)
 	struct rdp_backend *b = to_rdp_backend(base->compositor);
 	struct wl_event_loop *loop;
 
+	output->base.output_type = OUTPUT_RDP;
 	output->shadow_surface = pixman_image_create_bits(PIXMAN_x8r8g8b8,
 							  output->base.current_mode->width,
 							  output->base.current_mode->height,

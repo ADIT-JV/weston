@@ -1164,6 +1164,7 @@ wayland_output_enable(struct weston_output *base)
 	struct wayland_backend *b = to_wayland_backend(base->compositor);
 	int ret = 0;
 
+	output->base.output_type = OUTPUT_WAYLAND;
 	weston_log("Creating %dx%d wayland output at (%d, %d)\n",
 		   output->base.current_mode->width,
 		   output->base.current_mode->height,

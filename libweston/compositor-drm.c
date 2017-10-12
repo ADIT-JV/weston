@@ -244,14 +244,16 @@ drm_output_find_by_crtc(struct drm_backend *b, uint32_t crtc_id)
 	struct drm_output *output;
 
 	wl_list_for_each(output, &b->compositor->output_list, base.link) {
-		if (output->crtc_id == crtc_id)
-			return output;
+		if(output->base.output_type == OUTPUT_DRM)
+			if (output->crtc_id == crtc_id)
+				return output;
 	}
 
 	wl_list_for_each(output, &b->compositor->pending_output_list,
 			 base.link) {
-		if (output->crtc_id == crtc_id)
-			return output;
+		if(output->base.output_type == OUTPUT_DRM)
+			if (output->crtc_id == crtc_id)
+				return output;
 	}
 
 	return NULL;
@@ -263,14 +265,16 @@ drm_output_find_by_connector(struct drm_backend *b, uint32_t connector_id)
 	struct drm_output *output;
 
 	wl_list_for_each(output, &b->compositor->output_list, base.link) {
-		if (output->connector_id == connector_id)
-			return output;
+		if(output->base.output_type == OUTPUT_DRM)
+			if (output->connector_id == connector_id)
+				return output;
 	}
 
 	wl_list_for_each(output, &b->compositor->pending_output_list,
 			 base.link) {
-		if (output->connector_id == connector_id)
-			return output;
+		if(output->base.output_type == OUTPUT_DRM)
+			if (output->connector_id == connector_id)
+				return output;
 	}
 
 	return NULL;
@@ -2415,6 +2419,7 @@ drm_output_enable(struct weston_output *base)
 	struct weston_mode *m;
 
 	output->dpms_prop = drm_get_prop(b->drm.fd, output->connector, "DPMS");
+	output->base.output_type = OUTPUT_DRM;
 
 	if (b->use_pixman) {
 		if (drm_output_init_pixman(output, b) < 0) {
@@ -2782,38 +2787,42 @@ update_outputs(struct drm_backend *b, struct udev_device *drm_device)
 
 	wl_list_for_each_safe(output, next, &b->compositor->output_list,
 			      base.link) {
-		bool disconnected = true;
+		if (output->base.output_type == OUTPUT_DRM) {
+			bool disconnected = true;
 
-		for (i = 0; i < resources->count_connectors; i++) {
-			if (connected[i] == output->connector_id) {
-				disconnected = false;
-				break;
+			for (i = 0; i < resources->count_connectors; i++) {
+				if (connected[i] == output->connector_id) {
+					disconnected = false;
+					break;
+				}
 			}
+
+			if (!disconnected)
+				continue;
+
+			weston_log("connector %d disconnected\n", output->connector_id);
+			drm_output_destroy(&output->base);
 		}
-
-		if (!disconnected)
-			continue;
-
-		weston_log("connector %d disconnected\n", output->connector_id);
-		drm_output_destroy(&output->base);
 	}
 
 	wl_list_for_each_safe(output, next, &b->compositor->pending_output_list,
 			      base.link) {
-		bool disconnected = true;
+		if (output->base.output_type == OUTPUT_DRM) {
+			bool disconnected = true;
 
-		for (i = 0; i < resources->count_connectors; i++) {
-			if (connected[i] == output->connector_id) {
-				disconnected = false;
-				break;
+			for (i = 0; i < resources->count_connectors; i++) {
+				if (connected[i] == output->connector_id) {
+					disconnected = false;
+					break;
+				}
 			}
+
+			if (!disconnected)
+				continue;
+
+			weston_log("connector %d disconnected\n", output->connector_id);
+			drm_output_destroy(&output->base);
 		}
-
-		if (!disconnected)
-			continue;
-
-		weston_log("connector %d disconnected\n", output->connector_id);
-		drm_output_destroy(&output->base);
 	}
 
 	free(connected);
@@ -2938,18 +2947,21 @@ session_notify(struct wl_listener *listener, void *data)
 		 * pending frame callbacks. */
 
 		wl_list_for_each(output, &compositor->output_list, base.link) {
-			output->base.repaint_needed = 0;
-			drmModeSetCursor(b->drm.fd, output->crtc_id, 0, 0, 0);
+			if(output->base.output_type == OUTPUT_DRM) {
+				output->base.repaint_needed = 0;
+				drmModeSetCursor(b->drm.fd, output->crtc_id, 0, 0, 0);
+			}
 		}
+		if(output->base.output_type == OUTPUT_DRM) {
+			output = container_of(compositor->output_list.next,
+					      struct drm_output, base.link);
 
-		output = container_of(compositor->output_list.next,
-				      struct drm_output, base.link);
-
-		wl_list_for_each(sprite, &b->sprite_list, link)
-			drmModeSetPlane(b->drm.fd,
-					sprite->plane_id,
-					output->crtc_id, 0, 0,
-					0, 0, 0, 0, 0, 0, 0, 0);
+			wl_list_for_each(sprite, &b->sprite_list, link)
+				drmModeSetPlane(b->drm.fd,
+						sprite->plane_id,
+						output->crtc_id, 0, 0,
+						0, 0, 0, 0, 0, 0, 0, 0);
+		}
 	};
 }
 
@@ -3245,7 +3257,8 @@ switch_to_gl_renderer(struct drm_backend *b)
 	}
 
 	wl_list_for_each(output, &b->compositor->output_list, base.link)
-		pixman_renderer_output_destroy(&output->base);
+		if(output->base.output_type == OUTPUT_DRM)
+			pixman_renderer_output_destroy(&output->base);
 
 	b->compositor->renderer->destroy(b->compositor);
 
@@ -3257,7 +3270,8 @@ switch_to_gl_renderer(struct drm_backend *b)
 	}
 
 	wl_list_for_each(output, &b->compositor->output_list, base.link)
-		drm_output_init_egl(output, b);
+		if(output->base.output_type == OUTPUT_DRM)
+			drm_output_init_egl(output, b);
 
 	b->use_pixman = 0;
 

@@ -148,6 +148,7 @@ headless_output_enable(struct weston_output *base)
 	loop = wl_display_get_event_loop(b->compositor->wl_display);
 	output->finish_frame_timer =
 		wl_event_loop_add_timer(loop, finish_frame_handler, output);
+	output->base.output_type = OUTPUT_HEADLESS;
 
 	if (b->use_pixman) {
 		output->image_buf = malloc(output->base.current_mode->width *
