@@ -83,6 +83,7 @@ struct wet_compositor {
 };
 
 static FILE *weston_logfile = NULL;
+static struct weston_debug_scope *log_scope;
 
 static int cached_tm_mday = -1;
 
@@ -113,9 +114,16 @@ static int weston_log_timestamp(void)
 static void
 custom_handler(const char *fmt, va_list arg)
 {
+	char timestr[128];
+
 	weston_log_timestamp();
 	fprintf(weston_logfile, "libwayland: ");
 	vfprintf(weston_logfile, fmt, arg);
+
+	weston_debug_scope_printf(log_scope, "%s libwayland: ",
+			weston_debug_scope_timestamp(log_scope,
+			timestr, sizeof timestr));
+	weston_debug_scope_vprintf(log_scope, fmt, arg);
 }
 
 static void
@@ -147,6 +155,14 @@ static int
 vlog(const char *fmt, va_list ap)
 {
 	int l;
+	char timestr[128];
+
+	if (weston_debug_scope_is_enabled(log_scope)) {
+		weston_debug_scope_printf(log_scope, "%s ",
+				weston_debug_scope_timestamp(log_scope,
+				timestr, sizeof timestr));
+		weston_debug_scope_vprintf(log_scope, fmt, ap);
+	}
 
 	l = weston_log_timestamp();
 	l += vfprintf(weston_logfile, fmt, ap);
@@ -157,6 +173,8 @@ vlog(const char *fmt, va_list ap)
 static int
 vlog_continue(const char *fmt, va_list argp)
 {
+	weston_debug_scope_vprintf(log_scope, fmt, argp);
+
 	return vfprintf(weston_logfile, fmt, argp);
 }
 
@@ -647,6 +665,9 @@ static int on_term_signal(int signal_number, void *data)
 static void
 on_caught_signal(int s, siginfo_t *siginfo, void *context)
 {
+	/* Leak it, try to avoid more fallout. */
+	log_scope = NULL;
+
 	/* This signal handler will do a best-effort backtrace, and
 	 * then call the backend restore function, which will switch
 	 * back to the vt we launched from or ungrab X etc and then
@@ -1875,6 +1896,9 @@ int main(int argc, char *argv[])
 		goto out;
 	}
 
+	log_scope = weston_compositor_add_debug_scope(ec, "log",
+			"Weston and Wayland log\n", NULL, NULL);
+
 	if (debug_protocol)
 		weston_compositor_enable_debug_protocol(ec);
 
@@ -1986,6 +2010,7 @@ out:
 	/* free(NULL) is valid, and it won't be NULL if it's used */
 	free(user_data.parsed_options);
 
+	weston_debug_scope_destroy(log_scope);
 	weston_compositor_destroy(ec);
 
 out_signals:
