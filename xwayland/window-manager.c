@@ -384,22 +384,29 @@ dump_property(struct weston_wm *wm,
 	xcb_atom_t *atom_value;
 	int width, len;
 	uint32_t i;
+	FILE *fp;
+	char *logstr;
+	size_t logsize;
 
-	width = wm_log_continue("%s: ", get_atom_name(wm->conn, property));
-	if (reply == NULL) {
-		wm_log_continue("(no reply)\n");
+	fp = open_memstream(&logstr, &logsize);
+	if (!fp)
 		return;
+
+	width = fprintf(fp, "%s: ", get_atom_name(wm->conn, property));
+	if (reply == NULL) {
+		fprintf(fp, "(no reply)\n");
+		goto out;
 	}
 
-	width += wm_log_continue("%s/%d, length %d (value_len %d): ",
-				 get_atom_name(wm->conn, reply->type),
-				 reply->format,
-				 xcb_get_property_value_length(reply),
-				 reply->value_len);
+	width += fprintf(fp, "%s/%d, length %d (value_len %d): ",
+			 get_atom_name(wm->conn, reply->type),
+			 reply->format,
+			 xcb_get_property_value_length(reply),
+			 reply->value_len);
 
 	if (reply->type == wm->atom.incr) {
 		incr_value = xcb_get_property_value(reply);
-		wm_log_continue("%d\n", *incr_value);
+		fprintf(fp, "%d\n", *incr_value);
 	} else if (reply->type == wm->atom.utf8_string ||
 	      reply->type == wm->atom.string) {
 		text_value = xcb_get_property_value(reply);
@@ -407,24 +414,29 @@ dump_property(struct weston_wm *wm,
 			len = 40;
 		else
 			len = reply->value_len;
-		wm_log_continue("\"%.*s\"\n", len, text_value);
+		fprintf(fp, "\"%.*s\"\n", len, text_value);
 	} else if (reply->type == XCB_ATOM_ATOM) {
 		atom_value = xcb_get_property_value(reply);
 		for (i = 0; i < reply->value_len; i++) {
 			name = get_atom_name(wm->conn, atom_value[i]);
 			if (width + strlen(name) + 2 > 78) {
-				wm_log_continue("\n    ");
+				fprintf(fp, "\n    ");
 				width = 4;
 			} else if (i > 0) {
-				width +=  wm_log_continue(", ");
+				width +=  fprintf(fp, ", ");
 			}
 
-			width +=  wm_log_continue("%s", name);
+			width +=  fprintf(fp, "%s", name);
 		}
-		wm_log_continue("\n");
+		fprintf(fp, "\n");
 	} else {
-		wm_log_continue("huh?\n");
+		fprintf(fp, "huh?\n");
 	}
+
+out:
+	if (fclose(fp) == 0)
+		wm_log_continue("%s", logstr);
+	free(logstr);
 }
 
 static void
