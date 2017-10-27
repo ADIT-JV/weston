@@ -47,7 +47,6 @@
 
 #include <X11/Xlib.h>
 #include <X11/Xlib-xcb.h>
-#include <X11/cursorfont.h>
 
 #include <xkbcommon/xkbcommon.h>
 
@@ -855,8 +854,6 @@ x11_output_enable(struct weston_output *base)
 			  screen->root_visual,
 			  mask, values);
 
-	xcb_free_cursor(b->conn, b->null_cursor);
-
 	if (b->fullscreen) {
 		atom_list[0] = b->atom.net_wm_state_fullscreen;
 		xcb_change_property(b->conn, XCB_PROP_MODE_REPLACE,
@@ -1561,8 +1558,10 @@ x11_backend_get_resources(struct x11_backend *b)
 
 	xcb_intern_atom_cookie_t cookies[ARRAY_LENGTH(atoms)];
 	xcb_intern_atom_reply_t *reply;
-	xcb_font_t font;
+	xcb_pixmap_t pixmap;
+	xcb_gc_t gc;
 	unsigned int i;
+	uint8_t data[] = { 0, 0, 0, 0 };
 
 	for (i = 0; i < ARRAY_LENGTH(atoms); i++)
 		cookies[i] = xcb_intern_atom (b->conn, 0,
@@ -1575,19 +1574,17 @@ x11_backend_get_resources(struct x11_backend *b)
 		free(reply);
 	}
 
+	pixmap = xcb_generate_id(b->conn);
+	gc = xcb_generate_id(b->conn);
+	xcb_create_pixmap(b->conn, 1, pixmap, b->screen->root, 1, 1);
+	xcb_create_gc(b->conn, gc, pixmap, 0, NULL);
+	xcb_put_image(b->conn, XCB_IMAGE_FORMAT_XY_PIXMAP,
+		      pixmap, gc, 1, 1, 0, 0, 0, 32, sizeof data, data);
 	b->null_cursor = xcb_generate_id(b->conn);
-	font = xcb_generate_id (b->conn);
-	xcb_open_font(b->conn, font, strlen ("cursor"), "cursor");
-	xcb_create_glyph_cursor(b->conn,
-							b->null_cursor,
-							font,
-							font,
-							XC_left_ptr,			/*cursor ID*/
-							XC_left_ptr + 1,
-							0, 0, 0,				/*foreground value of cursor set to black*/
-							65535, 65535, 65535);	/*background value of cursor set to white*/
-
-    xcb_close_font(b->conn, font);
+	xcb_create_cursor (b->conn, b->null_cursor,
+			   pixmap, pixmap, 0, 0, 0,  0, 0, 0,  1, 1);
+	xcb_free_gc(b->conn, gc);
+	xcb_free_pixmap(b->conn, pixmap);
 }
 
 static void
