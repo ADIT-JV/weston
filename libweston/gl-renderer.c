@@ -2348,6 +2348,20 @@ static const char texture_fragment_shader_rgba[] =
 	"   gl_FragColor = alpha * texture2D(tex, v_texcoord)\n;"
 	;
 
+static const char texture_fragment_shader_rgba_splitter[] =
+	"precision mediump float;\n"
+	"varying vec2 v_texcoord;\n"
+	"uniform sampler2D tex;\n"
+	"uniform float alpha;\n"
+	"void main()\n"
+	"{\n"
+	"   float x = floor(gl_FragCoord.x);\n"
+	"   vec2 v = vec2(v_texcoord.x / 2.0, v_texcoord.y);\n"
+	"   if( mod(x, 2.0) == 1.0 )\n"
+	"      v.x += 0.5;\n"
+	"   gl_FragColor = alpha * texture2D(tex, v)\n;"
+	;
+
 static const char texture_fragment_shader_rgbx[] =
 	"precision mediump float;\n"
 	"varying vec2 v_texcoord;\n"
@@ -2356,6 +2370,21 @@ static const char texture_fragment_shader_rgbx[] =
 	"void main()\n"
 	"{\n"
 	"   gl_FragColor.rgb = alpha * texture2D(tex, v_texcoord).rgb\n;"
+	"   gl_FragColor.a = alpha;\n"
+	;
+
+static const char texture_fragment_shader_rgbx_splitter[] =
+	"precision mediump float;\n"
+	"varying vec2 v_texcoord;\n"
+	"uniform sampler2D tex;\n"
+	"uniform float alpha;\n"
+	"void main()\n"
+	"{\n"
+	"   float x = floor(gl_FragCoord.x);\n"
+	"   vec2 v = vec2(v_texcoord.x / 2.0, v_texcoord.y);\n"
+	"   if( mod(x, 2.0) == 1.0 )\n"
+	"      v.x += 0.5;\n"
+	"   gl_FragColor.rgb = alpha * texture2D(tex, v).rgb\n;"
 	"   gl_FragColor.a = alpha;\n"
 	;
 
@@ -3229,11 +3258,15 @@ compile_shaders(struct weston_compositor *ec)
 	struct gl_renderer *gr = get_renderer(ec);
 
 	gr->texture_shader_rgba.vertex_source = vertex_shader;
-	gr->texture_shader_rgba.fragment_source = texture_fragment_shader_rgba;
-
+	if(!ec->enable_splitter)
+		gr->texture_shader_rgba.fragment_source = texture_fragment_shader_rgba;
+	else
+		gr->texture_shader_rgba.fragment_source = texture_fragment_shader_rgba_splitter;
 	gr->texture_shader_rgbx.vertex_source = vertex_shader;
-	gr->texture_shader_rgbx.fragment_source = texture_fragment_shader_rgbx;
-
+	if(!ec->enable_splitter)
+		gr->texture_shader_rgbx.fragment_source = texture_fragment_shader_rgbx;
+	else
+		gr->texture_shader_rgbx.fragment_source = texture_fragment_shader_rgbx_splitter;
 	gr->texture_shader_egl_external.vertex_source = vertex_shader;
 	gr->texture_shader_egl_external.fragment_source =
 		texture_fragment_shader_egl_external;

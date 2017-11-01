@@ -1789,6 +1789,7 @@ int main(int argc, char *argv[])
 	struct weston_seat *seat;
 	struct wet_compositor user_data;
 	int require_input;
+	int enable_splitter;
 
 	const struct weston_option core_options[] = {
 		{ WESTON_OPTION_STRING, "backend", 'B', &backend },
@@ -1877,6 +1878,10 @@ int main(int argc, char *argv[])
 	weston_config_section_get_bool(section, "require-input",
 				       &require_input, true);
 	ec->require_input = require_input;
+
+	weston_config_section_get_bool(section, "enable-splitter",
+				       &enable_splitter, true);
+	ec->enable_splitter = enable_splitter;
 
 	if (load_backend(ec, backend, &argc, argv, config) < 0) {
 		weston_log("fatal: failed to create compositor backend\n");
