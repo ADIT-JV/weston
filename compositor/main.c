@@ -1166,6 +1166,7 @@ drm_backend_output_configure(struct wl_listener *listener, void *data)
 	char *gbm_format = NULL;
 	char *seat = NULL;
 	int enable_surface_share;
+	int splitter_pipe;
 
 	if (!api) {
 		weston_log("Cannot use weston_drm_output_api.\n");
@@ -1191,6 +1192,11 @@ drm_backend_output_configure(struct wl_listener *listener, void *data)
 				       &enable_surface_share,
 				       0);
 	output->enable_surface_share = enable_surface_share;
+
+	weston_config_section_get_bool(section, "splitter-pipe",
+				       &splitter_pipe,
+				       0);
+	output->splitter_pipe = splitter_pipe;
 
 	if (api->set_mode(output, mode, modeline) < 0) {
 		weston_log("Cannot configure an output using weston_drm_output_api.\n");
@@ -1880,7 +1886,7 @@ int main(int argc, char *argv[])
 	ec->require_input = require_input;
 
 	weston_config_section_get_bool(section, "enable-splitter",
-				       &enable_splitter, true);
+				       &enable_splitter, 0);
 	ec->enable_splitter = enable_splitter;
 
 	if (load_backend(ec, backend, &argc, argv, config) < 0) {

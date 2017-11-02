@@ -221,6 +221,7 @@ struct weston_output {
 	bool enabled;
 	int scale;
 	bool enable_surface_share;
+	bool splitter_pipe;
 
 	int (*enable)(struct weston_output *output);
 	int (*disable)(struct weston_output *output);

@@ -224,7 +224,9 @@ struct gl_renderer {
 	int has_gl_texture_rg;
 
 	struct gl_shader texture_shader_rgba;
+	struct gl_shader texture_shader_rgba_splitter;
 	struct gl_shader texture_shader_rgbx;
+	struct gl_shader texture_shader_rgbx_splitter;
 	struct gl_shader texture_shader_egl_external;
 	struct gl_shader texture_shader_y_uv;
 	struct gl_shader texture_shader_y_u_v;
@@ -768,6 +770,9 @@ draw_view(struct weston_view *ev, struct weston_output *output,
 	 * have a valid buffer or a proper shader set up so skip rendering. */
 	if (!gs->shader)
 		return;
+	/* Splitter support for SBR project  */
+	if(ec->enable_splitter && output->splitter_pipe)
+		gs->shader = &gr->texture_shader_rgba_splitter;
 
 	pixman_region32_init(&repaint);
 	pixman_region32_intersect(&repaint,
@@ -3258,15 +3263,11 @@ compile_shaders(struct weston_compositor *ec)
 	struct gl_renderer *gr = get_renderer(ec);
 
 	gr->texture_shader_rgba.vertex_source = vertex_shader;
-	if(!ec->enable_splitter)
-		gr->texture_shader_rgba.fragment_source = texture_fragment_shader_rgba;
-	else
-		gr->texture_shader_rgba.fragment_source = texture_fragment_shader_rgba_splitter;
+	gr->texture_shader_rgba.fragment_source = texture_fragment_shader_rgba;
+
 	gr->texture_shader_rgbx.vertex_source = vertex_shader;
-	if(!ec->enable_splitter)
-		gr->texture_shader_rgbx.fragment_source = texture_fragment_shader_rgbx;
-	else
-		gr->texture_shader_rgbx.fragment_source = texture_fragment_shader_rgbx_splitter;
+	gr->texture_shader_rgbx.fragment_source = texture_fragment_shader_rgbx;
+
 	gr->texture_shader_egl_external.vertex_source = vertex_shader;
 	gr->texture_shader_egl_external.fragment_source =
 		texture_fragment_shader_egl_external;
@@ -3284,6 +3285,16 @@ compile_shaders(struct weston_compositor *ec)
 
 	gr->solid_shader.vertex_source = vertex_shader;
 	gr->solid_shader.fragment_source = solid_fragment_shader;
+
+	if(ec->enable_splitter) {
+		gr->texture_shader_rgba_splitter.vertex_source = vertex_shader;
+		gr->texture_shader_rgba_splitter.fragment_source
+			= texture_fragment_shader_rgba_splitter;
+
+		gr->texture_shader_rgbx_splitter.vertex_source = vertex_shader;
+		gr->texture_shader_rgbx_splitter.fragment_source
+			= texture_fragment_shader_rgbx_splitter;
+	}
 
 	return 0;
 }
@@ -3305,7 +3316,10 @@ fragment_debug_binding(struct weston_keyboard *keyboard, uint32_t time,
 	shader_release(&gr->texture_shader_y_u_v);
 	shader_release(&gr->texture_shader_y_xuxv);
 	shader_release(&gr->solid_shader);
-
+	if(ec->enable_splitter) {
+		shader_release(&gr->texture_shader_rgba_splitter);
+		shader_release(&gr->texture_shader_rgbx_splitter);
+	}
 	/* Force use_shader() to call glUseProgram(), since we need to use
 	 * the recompiled version of the shader. */
 	gr->current_shader = NULL;
