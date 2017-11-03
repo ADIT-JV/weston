@@ -902,9 +902,6 @@ struct weston_compositor {
 
 	/* Whether to let the compositor run without any input device. */
 	bool require_input;
-
-	/* Splitter support for SBR project */
-	bool enable_splitter;
 };
 
 struct weston_buffer {
