@@ -224,6 +224,7 @@ struct gl_renderer {
 	int has_gl_texture_rg;
 
 	struct gl_shader texture_shader_rgba;
+	struct gl_shader texture_shader_rgba_splitter;
 	struct gl_shader texture_shader_rgbx;
 	struct gl_shader texture_shader_egl_external;
 	struct gl_shader texture_shader_y_uv;
@@ -768,6 +769,9 @@ draw_view(struct weston_view *ev, struct weston_output *output,
 	 * have a valid buffer or a proper shader set up so skip rendering. */
 	if (!gs->shader)
 		return;
+	/* Splitter support for SBR project  */
+	if(output->splitter_pipe)
+		gs->shader = &gr->texture_shader_rgba_splitter;
 
 	pixman_region32_init(&repaint);
 	pixman_region32_intersect(&repaint,
@@ -2348,6 +2352,20 @@ static const char texture_fragment_shader_rgba[] =
 	"   gl_FragColor = alpha * texture2D(tex, v_texcoord)\n;"
 	;
 
+static const char texture_fragment_shader_rgba_splitter[] =
+	"precision mediump float;\n"
+	"varying vec2 v_texcoord;\n"
+	"uniform sampler2D tex;\n"
+	"uniform float alpha;\n"
+	"void main()\n"
+	"{\n"
+	"   float x = floor(gl_FragCoord.x);\n"
+	"   vec2 v = vec2(v_texcoord.x / 2.0, v_texcoord.y);\n"
+	"   if( mod(x, 2.0) == 1.0 )\n"
+	"      v.x += 0.5;\n"
+	"   gl_FragColor = alpha * texture2D(tex, v)\n;"
+	;
+
 static const char texture_fragment_shader_rgbx[] =
 	"precision mediump float;\n"
 	"varying vec2 v_texcoord;\n"
@@ -3252,6 +3270,10 @@ compile_shaders(struct weston_compositor *ec)
 	gr->solid_shader.vertex_source = vertex_shader;
 	gr->solid_shader.fragment_source = solid_fragment_shader;
 
+	gr->texture_shader_rgba_splitter.vertex_source = vertex_shader;
+	gr->texture_shader_rgba_splitter.fragment_source
+		= texture_fragment_shader_rgba_splitter;
+
 	return 0;
 }
 
@@ -3272,6 +3294,7 @@ fragment_debug_binding(struct weston_keyboard *keyboard, uint32_t time,
 	shader_release(&gr->texture_shader_y_u_v);
 	shader_release(&gr->texture_shader_y_xuxv);
 	shader_release(&gr->solid_shader);
+	shader_release(&gr->texture_shader_rgba_splitter);
 
 	/* Force use_shader() to call glUseProgram(), since we need to use
 	 * the recompiled version of the shader. */

@@ -221,6 +221,7 @@ struct weston_output {
 	bool enabled;
 	int scale;
 	bool enable_surface_share;
+	bool splitter_pipe;
 
 	int (*enable)(struct weston_output *output);
 	int (*disable)(struct weston_output *output);
@@ -901,7 +902,6 @@ struct weston_compositor {
 
 	/* Whether to let the compositor run without any input device. */
 	bool require_input;
-
 };
 
 struct weston_buffer {
