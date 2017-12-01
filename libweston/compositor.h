@@ -817,6 +817,7 @@ struct weston_backend {
 
 struct weston_desktop_xwayland;
 struct weston_desktop_xwayland_interface;
+struct weston_debug_compositor;
 
 struct weston_compositor {
 	struct wl_signal destroy_signal;
@@ -914,6 +915,7 @@ struct weston_compositor {
 	/* Whether to let the compositor run without any input device. */
 	bool require_input;
 
+	struct weston_debug_compositor *weston_debug;
 };
 
 struct weston_buffer {
@@ -1916,6 +1918,12 @@ weston_output_disable(struct weston_output *output);
 
 void
 weston_pending_output_coldplug(struct weston_compositor *compositor);
+
+int
+weston_debug_compositor_create(struct weston_compositor *compositor);
+
+void
+weston_debug_compositor_destroy(struct weston_compositor *compositor);
 
 #ifdef  __cplusplus
 }

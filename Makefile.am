@@ -105,6 +105,8 @@ libweston_@LIBWESTON_MAJOR@_la_SOURCES =			\
 	libweston/timeline-object.h			\
 	libweston/linux-dmabuf.c			\
 	libweston/linux-dmabuf.h			\
+	libweston/weston-debug.c			\
+	libweston/weston-debug.h			\
 	shared/helpers.h				\
 	shared/matrix.c					\
 	shared/matrix.h					\
