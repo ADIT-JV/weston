@@ -3450,7 +3450,7 @@ static void vm_init(struct gl_renderer *gr)
 	gr->vm_buffer_table =
 			(struct vm_buffer_table *) zalloc(sizeof (struct vm_buffer_table));
 	vbt = gr->vm_buffer_table;
-	vbt->h.version = 1;
+	vbt->h.version = 2;
 	vbt->h.counter = 0;
 	vbt->h.n_buffers = 0;
 
@@ -3535,7 +3535,8 @@ static void print_vm_buf_list(struct gl_renderer *gr)
 
 
 	wl_list_for_each(gr_buf, &vbt->vm_buffer_info_list, elm) {
-		weston_log("Surface id = %s\n", gr_buf->vm_buffer_info.surface_name);
+		weston_log("Surface name = %s\n", gr_buf->vm_buffer_info.surface_name);
+		weston_log("Surface id = %ld\n", gr_buf->vm_buffer_info.surface_id);
 		weston_log("Width = %d\n", gr_buf->vm_buffer_info.width);
 		weston_log("Height = %d\n", gr_buf->vm_buffer_info.height);
 		weston_log("Pitch[0] = %d offset[0] = %d\n",
@@ -3551,6 +3552,7 @@ static void print_vm_buf_list(struct gl_renderer *gr)
 		weston_log("BPP = %d\n", gr_buf->vm_buffer_info.bpp);
 		weston_log("Pixel format = 0x%X\n", gr_buf->vm_buffer_info.format);
 		weston_log("ggtt_offset = 0x%lX\n", gr_buf->vm_buffer_info.ggtt_offset);
+		weston_log("counter = %d\n", gr_buf->vm_buffer_info.counter);
 		weston_log("%s\n\n", gr_buf->vm_buffer_info.status & UPDATED ? "Updated" : "Not Updated");
 	}
 	weston_log("-------------------------\n");
@@ -3558,11 +3560,12 @@ static void print_vm_buf_list(struct gl_renderer *gr)
 
 static void vm_add_buf(struct weston_compositor *ec, struct gl_renderer *gr,
 		struct gl_surface_state *gs, struct weston_buffer *buffer,
-		struct weston_surface *surface)
+		struct weston_view *view)
 {
 	struct vm_buffer_table *vbt = gr->vm_buffer_table;
 	struct gr_buffer_ref *gr_buffer_ref_ptr;
 	int32_t tiling_format[2];
+	struct weston_surface *surface = view->surface;
 
 	if(!buffer->priv_buffer) {
 		gr_buffer_ref_ptr = zalloc(sizeof(struct gr_buffer_ref));
@@ -3606,6 +3609,20 @@ static void vm_add_buf(struct weston_compositor *ec, struct gl_renderer *gr,
 
 	gr_buffer_ref_ptr->vm_buffer_info.status |= UPDATED;
 	gr_buffer_ref_ptr->vm_buffer_info.tile_format = tiling_format[0];
+
+	if(ec->renderer->get_surf_id) {
+		gr_buffer_ref_ptr->vm_buffer_info.surface_id =
+			ec->renderer->get_surf_id(gs->surface);
+			}
+
+	gr_buffer_ref_ptr->vm_buffer_info.bbox[0] =
+		view->transform.boundingbox.extents.x1;
+	gr_buffer_ref_ptr->vm_buffer_info.bbox[1] =
+		view->transform.boundingbox.extents.y1;
+	gr_buffer_ref_ptr->vm_buffer_info.bbox[2] =
+		view->transform.boundingbox.extents.x2 - gr_buffer_ref_ptr->vm_buffer_info.bbox[0];
+	gr_buffer_ref_ptr->vm_buffer_info.bbox[3] =
+		view->transform.boundingbox.extents.y2 - gr_buffer_ref_ptr->vm_buffer_info.bbox[1];
 
 	if(ec->renderer->fill_surf_name) {
 		ec->renderer->fill_surf_name(gs->surface, SURFACE_NAME_LENGTH - 1,
@@ -3667,7 +3684,7 @@ static int vm_table_draw(struct weston_output *output, struct gl_output_state *g
 		if (io->enable_surface_share && view->plane == &ec->primary_plane) {
 			gs = get_surface_state(view->surface);
 			if(gs->buffer_ref.buffer) {
-				vm_add_buf(ec, gr, gs, gs->buffer_ref.buffer, view->surface);
+				vm_add_buf(ec, gr, gs, gs->buffer_ref.buffer, view);
 			}
 		}
 	}

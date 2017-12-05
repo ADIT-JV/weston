@@ -497,6 +497,14 @@ static void fill_surf_name(struct weston_surface *surface, int len,
 	snprintf(surf_name, len, "%d", ivisurf->id_surface);
 }
 
+static uint64_t get_surf_id(struct weston_surface *surface)
+{
+	struct ivi_shell_surface *ivisurf = get_ivi_shell_surface(surface);
+
+	assert(ivisurf);
+	return ivisurf->id_surface;
+}
+
 /*
  * Initialization of ivi-shell.
  */
@@ -543,7 +551,7 @@ wet_shell_init(struct weston_compositor *compositor,
 	retval = 0;
 
 	compositor->renderer->fill_surf_name = fill_surf_name;
-
+	compositor->renderer->get_surf_id = get_surf_id;
 out_settings:
 	free(setting.ivi_module);
 

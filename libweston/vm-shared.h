@@ -44,8 +44,11 @@
 
 struct vm_header {
 	int32_t version;
+	int32_t output;
 	int32_t counter;
 	int32_t n_buffers;
+	int32_t disp_w;
+	int32_t disp_h;
 };
 
 struct vm_buffer_info {
@@ -63,6 +66,8 @@ struct vm_buffer_info {
 		unsigned long ggtt_offset;
 	};
 	char surface_name[SURFACE_NAME_LENGTH];
+	uint64_t surface_id;
+	int32_t bbox[4];
 };
 
 

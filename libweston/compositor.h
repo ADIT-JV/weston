@@ -751,6 +751,7 @@ struct weston_renderer {
 			char *surf_name);
 	void (*finish_frame)(struct weston_output *output,
 			struct weston_compositor *ec);
+	uint64_t (*get_surf_id)(struct weston_surface *surface);
 };
 
 enum weston_capability {
