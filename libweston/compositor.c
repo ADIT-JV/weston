@@ -5105,6 +5105,9 @@ weston_compositor_create(struct wl_display *display, void *user_data)
 			      ec, bind_presentation))
 		goto fail;
 
+	if (weston_debug_compositor_create(ec) < 0)
+		goto fail;
+
 	if (weston_input_init(ec) != 0)
 		goto fail;
 
@@ -5387,6 +5390,8 @@ weston_compositor_destroy(struct weston_compositor *compositor)
 		compositor->backend->destroy(compositor);
 
 	weston_plugin_api_destroy_list(compositor);
+
+	weston_debug_compositor_destroy(compositor);
 
 	free(compositor);
 }

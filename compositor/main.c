@@ -64,6 +64,7 @@
 #include "compositor-x11.h"
 #include "compositor-wayland.h"
 #include "windowed-output-api.h"
+#include "weston-debug.h"
 
 #define WINDOW_TITLE "Weston Compositor"
 
@@ -82,6 +83,8 @@ struct wet_compositor {
 };
 
 static FILE *weston_logfile = NULL;
+static struct weston_debug_scope *log_scope;
+static struct weston_debug_scope *protocol_scope;
 
 static int cached_tm_mday = -1;
 
@@ -112,9 +115,16 @@ static int weston_log_timestamp(void)
 static void
 custom_handler(const char *fmt, va_list arg)
 {
+	char timestr[128];
+
 	weston_log_timestamp();
 	fprintf(weston_logfile, "libwayland: ");
 	vfprintf(weston_logfile, fmt, arg);
+
+	weston_debug_scope_printf(log_scope, "%s libwayland: ",
+			weston_debug_scope_timestamp(log_scope,
+			timestr, sizeof timestr));
+	weston_debug_scope_vprintf(log_scope, fmt, arg);
 }
 
 static void
@@ -146,6 +156,14 @@ static int
 vlog(const char *fmt, va_list ap)
 {
 	int l;
+	char timestr[128];
+
+	if (weston_debug_scope_is_enabled(log_scope)) {
+		weston_debug_scope_printf(log_scope, "%s ",
+				weston_debug_scope_timestamp(log_scope,
+				timestr, sizeof timestr));
+		weston_debug_scope_vprintf(log_scope, fmt, ap);
+	}
 
 	l = weston_log_timestamp();
 	l += vfprintf(weston_logfile, fmt, ap);
@@ -156,7 +174,119 @@ vlog(const char *fmt, va_list ap)
 static int
 vlog_continue(const char *fmt, va_list argp)
 {
+	weston_debug_scope_vprintf(log_scope, fmt, argp);
+
 	return vfprintf(weston_logfile, fmt, argp);
+}
+
+static const char *
+get_next_argument(const char *signature, char* type)
+{
+	for(; *signature; ++signature) {
+		switch(*signature) {
+		case 'i':
+		case 'u':
+		case 'f':
+		case 's':
+		case 'o':
+		case 'n':
+		case 'a':
+		case 'h':
+			*type = *signature;
+			return signature + 1;
+		}
+	}
+	*type = '\0';
+	return signature;
+}
+
+static void
+protocol_log_fn(void *user_data,
+		enum wl_protocol_logger_type direction,
+		const struct wl_protocol_logger_message *message)
+{
+	FILE *fp;
+	char *logstr;
+	size_t logsize;
+	char timestr[128];
+	struct wl_resource *res = message->resource;
+	const char *signature = message->message->signature;
+	int i;
+	char type;
+
+	if (!weston_debug_scope_is_enabled(protocol_scope))
+		return;
+
+	fp = open_memstream(&logstr, &logsize);
+	if (!fp)
+		return;
+
+	weston_debug_scope_timestamp(protocol_scope,
+			timestr, sizeof timestr);
+	fprintf(fp, "%s ", timestr);
+	fprintf(fp, "client %p %s ", wl_resource_get_client(res),
+		direction == WL_PROTOCOL_LOGGER_REQUEST ? "rq" : "ev");
+	fprintf(fp, "%s@%u.%s(",
+		wl_resource_get_class(res),
+		wl_resource_get_id(res),
+		message->message->name);
+
+	for (i = 0; i < message->arguments_count; i++) {
+		signature = get_next_argument(signature, &type);
+
+		if (i > 0)
+			fprintf(fp, ", ");
+
+		switch (type) {
+		case 'u':
+			fprintf(fp, "%u", message->arguments[i].u);
+			break;
+		case 'i':
+			fprintf(fp, "%d", message->arguments[i].i);
+			break;
+		case 'f':
+			fprintf(fp, "%f",
+				wl_fixed_to_double(message->arguments[i].f));
+			break;
+		case 's':
+			fprintf(fp, "\"%s\"", message->arguments[i].s);
+			break;
+		case 'o':
+			if (message->arguments[i].o) {
+				struct wl_resource* resource;
+				resource = (struct wl_resource*) message->arguments[i].o;
+				fprintf(fp, "%s@%u",
+					wl_resource_get_class(resource),
+					wl_resource_get_id(resource));
+			}
+			else
+				fprintf(fp, "nil");
+			break;
+		case 'n':
+			fprintf(fp, "new id %s@",
+				(message->message->types[i]) ?
+				message->message->types[i]->name :
+				"[unknown]");
+			if (message->arguments[i].n != 0)
+				fprintf(fp, "%u", message->arguments[i].n);
+			else
+				fprintf(fp, "nil");
+			break;
+		case 'a':
+			fprintf(fp, "array");
+			break;
+		case 'h':
+			fprintf(fp, "fd %d", message->arguments[i].h);
+			break;
+		}
+	}
+
+	fprintf(fp, ")\n");
+
+	if (fclose(fp) == 0)
+		weston_debug_scope_write(protocol_scope, logstr, logsize);
+
+	free(logstr);
 }
 
 static struct wl_list child_process_list;
@@ -557,6 +687,7 @@ usage(int error_code)
 		"  --log=FILE\t\tLog to the given file\n"
 		"  -c, --config=FILE\tConfig file to load, defaults to weston.ini\n"
 		"  --no-config\t\tDo not read weston.ini\n"
+		"  --debug\t\tEnable debug extension\n"
 		"  -h, --help\t\tThis help message\n\n");
 
 #if defined(BUILD_DRM_COMPOSITOR)
@@ -645,6 +776,9 @@ static int on_term_signal(int signal_number, void *data)
 static void
 on_caught_signal(int s, siginfo_t *siginfo, void *context)
 {
+	/* Leak it, try to avoid more fallout. */
+	log_scope = NULL;
+
 	/* This signal handler will do a best-effort backtrace, and
 	 * then call the backend restore function, which will switch
 	 * back to the vt we launched from or ungrab X etc and then
@@ -1780,6 +1914,7 @@ int main(int argc, char *argv[])
 	char *socket_name = NULL;
 	int32_t version = 0;
 	int32_t noconfig = 0;
+	int32_t debug_protocol = 0;
 	int32_t numlock_on;
 	char *config_file = NULL;
 	struct weston_config *config = NULL;
@@ -1789,6 +1924,7 @@ int main(int argc, char *argv[])
 	struct weston_seat *seat;
 	struct wet_compositor user_data;
 	int require_input;
+	struct wl_protocol_logger *protologger = NULL;
 
 	const struct weston_option core_options[] = {
 		{ WESTON_OPTION_STRING, "backend", 'B', &backend },
@@ -1802,6 +1938,7 @@ int main(int argc, char *argv[])
 		{ WESTON_OPTION_BOOLEAN, "version", 0, &version },
 		{ WESTON_OPTION_BOOLEAN, "no-config", 0, &noconfig },
 		{ WESTON_OPTION_STRING, "config", 'c', &config_file },
+		{ WESTON_OPTION_BOOLEAN, "debug", 0, &debug_protocol },
 	};
 
 	cmdline = copy_command_line(argc, argv);
@@ -1869,6 +2006,19 @@ int main(int argc, char *argv[])
 	if (ec == NULL) {
 		weston_log("fatal: failed to create compositor\n");
 		goto out;
+	}
+
+	log_scope = weston_compositor_add_debug_scope(ec, "log",
+			"Weston and Wayland log\n", NULL, NULL);
+	protocol_scope = weston_compositor_add_debug_scope(ec, "proto",
+			"Wayland protocol dump for all clients.\n",
+			NULL, NULL);
+
+	if (debug_protocol) {
+		protologger = wl_display_add_protocol_logger(display,
+							     protocol_log_fn,
+							     NULL);
+		weston_compositor_enable_debug_protocol(ec);
 	}
 
 	if (weston_compositor_init_config(ec, config) < 0)
@@ -1979,6 +2129,11 @@ out:
 	/* free(NULL) is valid, and it won't be NULL if it's used */
 	free(user_data.parsed_options);
 
+	if (protologger)
+		wl_protocol_logger_destroy(protologger);
+
+	weston_debug_scope_destroy(protocol_scope);
+	weston_debug_scope_destroy(log_scope);
 	weston_compositor_destroy(ec);
 
 out_signals:

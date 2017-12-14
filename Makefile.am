@@ -105,6 +105,8 @@ libweston_@LIBWESTON_MAJOR@_la_SOURCES =			\
 	libweston/timeline-object.h			\
 	libweston/linux-dmabuf.c			\
 	libweston/linux-dmabuf.h			\
+	libweston/weston-debug.c			\
+	libweston/weston-debug.h			\
 	shared/helpers.h				\
 	shared/matrix.c					\
 	shared/matrix.h					\
@@ -112,6 +114,10 @@ libweston_@LIBWESTON_MAJOR@_la_SOURCES =			\
 	shared/zalloc.h					\
 	shared/platform.h				\
 	shared/weston-egl-ext.h
+
+libweston_@LIBWESTON_MAJOR@_datadir = $(datadir)/weston/protocols
+dist_libweston_@LIBWESTON_MAJOR@_data_DATA =	\
+	protocol/weston-debug.xml
 
 lib_LTLIBRARIES += libweston-desktop-@LIBWESTON_MAJOR@.la
 libweston_desktop_@LIBWESTON_MAJOR@_la_CPPFLAGS = $(AM_CPPFLAGS) -DIN_WESTON
@@ -163,6 +169,8 @@ endif
 nodist_libweston_@LIBWESTON_MAJOR@_la_SOURCES =				\
 	protocol/weston-screenshooter-protocol.c			\
 	protocol/weston-screenshooter-server-protocol.h			\
+	protocol/weston-debug-protocol.c				\
+	protocol/weston-debug-server-protocol.h				\
 	protocol/text-cursor-position-protocol.c	\
 	protocol/text-cursor-position-server-protocol.h	\
 	protocol/text-input-unstable-v1-protocol.c			\
@@ -274,6 +282,10 @@ pkgconfig_DATA = \
 	libweston/libweston-${LIBWESTON_MAJOR}.pc \
 	libweston-desktop/libweston-desktop-${LIBWESTON_MAJOR}.pc \
 	compositor/weston.pc
+
+noarch_pkgconfigdir = $(datadir)/pkgconfig
+noarch_pkgconfig_DATA = \
+	libweston/libweston-${LIBWESTON_MAJOR}-protocols.pc
 
 wayland_sessiondir = $(datadir)/wayland-sessions
 dist_wayland_session_DATA = compositor/weston.desktop
@@ -514,7 +526,7 @@ spring_tool_SOURCES =				\
 
 if BUILD_CLIENTS
 
-bin_PROGRAMS += weston-terminal weston-info
+bin_PROGRAMS += weston-terminal weston-info weston-debug
 
 libexec_PROGRAMS +=				\
 	weston-desktop-shell			\
@@ -825,6 +837,15 @@ nodist_weston_info_SOURCES =				\
 weston_info_LDADD = $(WESTON_INFO_LIBS) libshared.la
 weston_info_CFLAGS = $(AM_CFLAGS) $(CLIENT_CFLAGS)
 
+weston_debug_SOURCES = 					\
+	clients/weston-debug.c				\
+	shared/helpers.h
+nodist_weston_debug_SOURCES =				\
+	protocol/weston-debug-protocol.c		\
+	protocol/weston-debug-client-protocol.h
+weston_debug_LDADD = $(WESTON_INFO_LIBS) libshared.la
+weston_debug_CFLAGS = $(AM_CFLAGS) $(CLIENT_CFLAGS)
+
 weston_desktop_shell_SOURCES = 				\
 	clients/desktop-shell.c				\
 	shared/helpers.h
@@ -859,6 +880,8 @@ endif
 BUILT_SOURCES +=					\
 	protocol/weston-screenshooter-protocol.c			\
 	protocol/weston-screenshooter-client-protocol.h			\
+	protocol/weston-debug-protocol.c				\
+	protocol/weston-debug-client-protocol.h				\
 	protocol/text-cursor-position-client-protocol.h	\
 	protocol/text-cursor-position-protocol.c	\
 	protocol/text-input-unstable-v1-protocol.c			\
@@ -1529,7 +1552,7 @@ surface_screenshot_la_SOURCES = tests/surface-screenshot.c
 # Documentation
 #
 
-man_MANS = weston.1 weston.ini.5
+man_MANS = weston.1 weston.ini.5 weston-debug.1
 
 if ENABLE_DRM_COMPOSITOR
 man_MANS += weston-drm.7
@@ -1549,7 +1572,8 @@ SUFFIXES = .1 .5 .7 .man
 EXTRA_DIST +=					\
 	man/weston.man				\
 	man/weston-drm.man			\
-	man/weston.ini.man
+	man/weston.ini.man			\
+	man/weston-debug.man
 
 CLEANFILES += $(man_MANS)
 
