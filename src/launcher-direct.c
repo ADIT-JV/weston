@@ -242,6 +242,9 @@ launcher_direct_restore(struct weston_launcher *launcher_base)
 	struct launcher_direct *launcher = wl_container_of(launcher_base, launcher, base);
 	struct vt_mode mode = { 0 };
 
+	if (launcher->tty < 0)
+		return;
+
 	if (ioctl(launcher->tty, KDSKBMUTE, 0) &&
 	    ioctl(launcher->tty, KDSKBMODE, launcher->kb_mode))
 		weston_log("failed to restore kb mode: %m\n");
@@ -263,6 +266,10 @@ static int
 launcher_direct_activate_vt(struct weston_launcher *launcher_base, int vt)
 {
 	struct launcher_direct *launcher = wl_container_of(launcher_base, launcher, base);
+
+	if (launcher->tty < 0)
+		return 0;
+
 	return ioctl(launcher->tty, VT_ACTIVATE, vt);
 }
 
@@ -279,6 +286,22 @@ launcher_direct_connect(struct weston_launcher **out, struct weston_compositor *
 	launcher->base.iface = &launcher_direct_iface;
 	launcher->compositor = compositor;
 
+	if (geteuid() == 0) {
+		if (setup_tty(launcher, tty) == -1) {
+			free(launcher);
+			return -1;
+		}
+	} else {
+		/*
+		 * FIXME: non-root users will need CAP_SYS_TTY_CONFIG
+		 * capability to configure the tty. For now, weston
+		 * will use whatever vt is currently active, in whatever
+		 * configuration it is currently in (hopefully graphics
+		 * mode?).
+		 */
+		launcher->tty = -1;
+	}
+
 	* (struct launcher_direct **) out = launcher;
 	return 0;
 }
@@ -289,7 +312,8 @@ launcher_direct_destroy(struct weston_launcher *launcher_base)
 	struct launcher_direct *launcher = wl_container_of(launcher_base, launcher, base);
 
 	launcher_direct_restore(&launcher->base);
-	wl_event_source_remove(launcher->vt_source);
+	if (launcher->vt_source)
+		wl_event_source_remove(launcher->vt_source);
 
 	if (launcher->tty >= 0)
 		close(launcher->tty);
