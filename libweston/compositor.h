@@ -227,6 +227,7 @@ struct weston_output {
 			  uint16_t *r,
 			  uint16_t *g,
 			  uint16_t *b);
+	void(*set_csc)(struct weston_output *output,uint16_t size,float *coefficients);
 
 	struct weston_timeline_object timeline;
 

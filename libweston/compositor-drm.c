@@ -157,6 +157,9 @@ struct drm_output {
 	drmModeCrtcPtr original_crtc;
 	struct drm_edid edid;
 	drmModePropertyPtr dpms_prop;
+	drmModePropertyPtr csc_prop;
+	uint32_t gamma_blobid;
+	uint32_t csc_blobid;
 	uint32_t gbm_format;
 	uint32_t disable_planes;
 
@@ -654,11 +657,83 @@ drm_output_render(struct drm_output *output, pixman_region32_t *damage)
 				 &c->primary_plane.damage, damage);
 }
 
+static bool
+drm_get_object_property(int drm_fd, uint32_t object_id, uint32_t object_type,
+			const char *name, uint32_t *prop_id,uint64_t *value,drmModePropertyPtr *prop)
+{
+	drmModeObjectPropertiesPtr proplist;
+	drmModePropertyPtr property;
+	bool found = false;
+	uint32_t loop;
+
+	proplist = drmModeObjectGetProperties(drm_fd, object_id, object_type);
+	for (loop = 0; loop < proplist->count_props; loop++) {
+		property = drmModeGetProperty(drm_fd, proplist->props[loop]);
+		if (!property)
+			continue;
+
+		if (strcmp(property->name, name) == 0) {
+			found = true;
+			if (prop_id)
+				*prop_id = proplist->props[loop];
+			if (value)
+				*value = proplist->prop_values[loop];
+			if (prop)
+				*prop = property;
+			else
+				drmModeFreeProperty(property);
+
+			break;
+		}
+		drmModeFreeProperty(property);
+	}
+
+	drmModeFreeObjectProperties(proplist);
+	return found;
+}
+
+static void
+drm_output_set_csc(struct weston_output *output_base,
+		uint16_t size,float *coefficients)
+{
+	struct drm_output *output = to_drm_output(output_base);
+	struct drm_backend *backend = to_drm_backend(output->base.compositor);
+	struct drm_color_ctm ctm;
+	int rc;
+	uint16_t loop;
+
+	if(size != (sizeof(ctm.matrix) / sizeof(ctm.matrix[0])))
+		return;
+
+	for (loop = 0; loop < size; loop++) {
+		if (coefficients[loop] < 0) {
+			ctm.matrix[loop] = (int64_t) (-coefficients[loop] * ((int64_t) 1L << 32));
+			ctm.matrix[loop] |= 1ULL << 63;
+		} else
+			ctm.matrix[loop] = (int64_t) (coefficients[loop] * ((int64_t) 1L << 32));
+	}
+	if (output->csc_blobid != 0) {
+		drmModeDestroyPropertyBlob(backend->drm.fd,output->csc_blobid);
+		output->csc_blobid = 0;
+	}
+
+	if((rc =drmModeCreatePropertyBlob(backend->drm.fd,&ctm, sizeof(ctm),
+			&output->csc_blobid))) {
+		rc = drmModeObjectSetProperty(backend->drm.fd,output->crtc_id,
+				DRM_MODE_OBJECT_CRTC,output->csc_prop->prop_id,output->csc_blobid);
+	}
+
+	return;
+}
+
 static void
 drm_output_set_gamma(struct weston_output *output_base,
 		     uint16_t size, uint16_t *r, uint16_t *g, uint16_t *b)
 {
 	int rc;
+	uint32_t prop_id;
+	int loop;
+	struct drm_color_lut *lut;
 	struct drm_output *output = to_drm_output(output_base);
 	struct drm_backend *backend =
 		to_drm_backend(output->base.compositor);
@@ -673,9 +748,63 @@ drm_output_set_gamma(struct weston_output *output_base,
 				 output->crtc_id,
 				 size, r, g, b);
 	if (rc)
+	{
+		if ((rc=drm_get_object_property(backend->drm.fd,output->crtc_id,
+				DRM_MODE_OBJECT_CRTC,"GAMMA_LUT",&prop_id,NULL,NULL))) {
+
+			lut = malloc(sizeof(struct drm_color_lut)*size);
+			if(!lut)
+				return;
+
+			for (loop = 0; loop < size; loop++) {
+					lut[loop].red = r[loop];
+					lut[loop].green = g[loop];
+					lut[loop].blue = b[loop];
+			}
+
+			if (output->gamma_blobid != 0) {
+				drmModeDestroyPropertyBlob(backend->drm.fd,output->gamma_blobid);
+				output->gamma_blobid = 0;
+			}
+
+			if((rc=drmModeCreatePropertyBlob(backend->drm.fd,
+										lut, size, &output->gamma_blobid))) {
+				rc = drmModeObjectSetProperty(backend->drm.fd,output->crtc_id,
+						DRM_MODE_OBJECT_CRTC,prop_id,output->gamma_blobid);
+			}
+			free(lut);
+		}
+	}
+
+	if(rc)
 		weston_log("set gamma failed: %m\n");
 }
 
+static uint16_t
+drm_output_get_gamma_size(struct weston_output *output_base)
+{
+	uint64_t size = 0;
+	struct drm_output *output = to_drm_output(output_base);
+	struct drm_backend *backend =
+			to_drm_backend(output->base.compositor);
+
+	/* check */
+	if (!output->original_crtc)
+		return 0;
+
+	if (output->original_crtc->gamma_size)
+		size = output->original_crtc->gamma_size;
+	else
+		drm_get_object_property (backend->drm.fd,
+							output->crtc_id,
+							DRM_MODE_OBJECT_CRTC,"GAMMA_LUT_SIZE",
+							NULL,&size,NULL);
+
+	if(!size)
+		weston_log("get gamma size query failed \n");
+
+	return size;
+}
 /* Determine the type of vblank synchronization to use for the output.
  *
  * The pipe parameter indicates which CRTC is in use.  Knowing this, we
@@ -2419,6 +2548,7 @@ drm_output_enable(struct weston_output *base)
 	struct weston_mode *m;
 
 	output->dpms_prop = drm_get_prop(b->drm.fd, output->connector, "DPMS");
+	output->csc_prop = drm_get_prop(b->drm.fd, output->connector, "CTM");
 	output->base.output_type = OUTPUT_DRM;
 
 	if (b->use_pixman) {
@@ -2446,14 +2576,18 @@ drm_output_enable(struct weston_output *base)
 	output->base.start_repaint_loop = drm_output_start_repaint_loop;
 	output->base.repaint = drm_output_repaint;
 	output->base.assign_planes = drm_assign_planes;
-	output->base.set_dpms = drm_set_dpms;
+	if(output->dpms_prop)
+	    output->base.set_dpms = drm_set_dpms;
 	output->base.switch_mode = drm_output_switch_mode;
 
-	output->base.gamma_size = output->original_crtc->gamma_size;
-	output->base.set_gamma = drm_output_set_gamma;
+	output->base.gamma_size = drm_output_get_gamma_size(base);
+	if(output->base.gamma_size)
+	    output->base.set_gamma = drm_output_set_gamma;
+
+	if(output->csc_prop)
+	    output->base.set_csc = drm_output_set_csc;
 
 	output->base.subpixel = drm_subpixel_to_wayland(output->connector->subpixel);
-
 	find_and_parse_output_edid(b, output, output->connector);
 	if (output->connector->connector_type == DRM_MODE_CONNECTOR_LVDS ||
 	    output->connector->connector_type == DRM_MODE_CONNECTOR_eDP)
@@ -2483,6 +2617,7 @@ drm_output_enable(struct weston_output *base)
 
 err_free:
 	drmModeFreeProperty(output->dpms_prop);
+	drmModeFreeProperty(output->csc_prop);
 
 	return -1;
 }
@@ -2502,7 +2637,7 @@ drm_output_deinit(struct weston_output *base)
 	weston_plane_release(&output->cursor_plane);
 
 	drmModeFreeProperty(output->dpms_prop);
-
+	drmModeFreeProperty(output->csc_prop);
 	/* Turn off hardware cursor */
 	drmModeSetCursor(b->drm.fd, output->crtc_id, 0, 0, 0);
 }
