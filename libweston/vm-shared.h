@@ -28,6 +28,11 @@
 
 #include <stdint.h>
 
+typedef struct {
+	int id;
+	int rng_key[3];
+} hyper_dmabuf_id_t;
+
 #define SURFACE_NAME_LENGTH     64
 #define BIT(a)                  (1<<a)
 /*
@@ -52,6 +57,7 @@ struct vm_header {
 };
 
 struct vm_buffer_info {
+	int32_t surf_index;
 	int32_t width, height;
 	int32_t format;
 	int32_t pitch[3];
@@ -62,7 +68,7 @@ struct vm_buffer_info {
 	int32_t status;
 	int32_t counter;
 	union {
-		unsigned long hyper_dmabuf_id;
+		hyper_dmabuf_id_t hyper_dmabuf_id;
 		unsigned long ggtt_offset;
 	};
 	char surface_name[SURFACE_NAME_LENGTH];
