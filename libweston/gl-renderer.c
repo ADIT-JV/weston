@@ -3583,7 +3583,7 @@ static void print_vm_buf_list(struct gl_renderer *gr)
 
 static void vm_add_buf(struct weston_compositor *ec, struct gl_renderer *gr,
 		struct gl_surface_state *gs, struct weston_buffer *buffer,
-		struct weston_view *view)
+		struct weston_view *view, int buf_ind)
 {
 	struct vm_buffer_table *vbt = gr->vm_buffer_table;
 	struct gr_buffer_ref *gr_buffer_ref_ptr;
@@ -3608,6 +3608,7 @@ static void vm_add_buf(struct weston_compositor *ec, struct gl_renderer *gr,
 	/* a surface may use multiple buffers, so it isn't ok to just increment the
 	 * buffer's counter. Instead, make sure that the buffer we're about to show
 	 * share has the surface's up-to-date frame count */
+	gr_buffer_ref_ptr->vm_buffer_info.surf_index = buf_ind;
 	gr_buffer_ref_ptr->vm_buffer_info.counter = gs->frame_count;
 
 	gr_buffer_ref_ptr->cleanup_required = 1;
@@ -3673,6 +3674,9 @@ static int vm_table_draw(struct weston_output *output, struct gl_output_state *g
 	EGLint buffer_age = 0;
 	EGLBoolean ret;
 	int full_width, full_height;
+	struct weston_output *o;
+	int output_num = 0;
+	int buf_ind = 0;
 	struct weston_matrix matrix;
 	struct gl_border_image *top, *bottom, *left, *right;
 	static const GLfloat tile_verts[] = {
@@ -3689,6 +3693,12 @@ static int vm_table_draw(struct weston_output *output, struct gl_output_state *g
 		sizeof(struct vm_buffer_info), 1.0, /**/  1.0, 1.0,
 	};
 
+	wl_list_for_each(o, &ec->output_list, link) {
+		if (output == o)
+			break;
+		output_num++;
+	}
+
 	/*
 	 * eglQuerySurface has to be called in order for the back
 	 * pointer in the DRI to not be NULL, or else eglSwapBuffers
@@ -3704,10 +3714,18 @@ static int vm_table_draw(struct weston_output *output, struct gl_output_state *g
 
 	wl_list_for_each_reverse(view, &ec->view_list, link) {
 		struct weston_output *io = (struct weston_output *) view->output;
+		pixman_region32_t output_overlap;
+		pixman_region32_init(&output_overlap);
+		pixman_region32_intersect(&output_overlap, &view->transform.boundingbox, &io->region);
+		if (!pixman_region32_not_empty(&output_overlap)) {
+			continue;
+		}
+
 		if (io->enable_surface_share && view->plane == &ec->primary_plane) {
 			gs = get_surface_state(view->surface);
 			if(gs->buffer_ref.buffer) {
-				vm_add_buf(ec, gr, gs, gs->buffer_ref.buffer, view);
+				vm_add_buf(ec, gr, gs, gs->buffer_ref.buffer, view, buf_ind);
+				buf_ind++;
 			}
 		}
 	}
@@ -3760,7 +3778,10 @@ static int vm_table_draw(struct weston_output *output, struct gl_output_state *g
 	 * the total number of buffers that we are providing to the host.
 	 */
 	vbt->h.counter++;
+	vbt->h.output = output_num;
 	vbt->h.n_buffers = num_textures;
+	vbt->h.disp_w = full_width;
+	vbt->h.disp_h = full_height;
 
         /* number of textures should be the number of buffers + 1 for the buffer table header */
         num_textures++;
